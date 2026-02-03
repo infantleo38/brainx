@@ -78,6 +78,6 @@ export default function FilePreviewModal({ file, onClose, onSend, isLoading }) {
                 </div>
             )}
         </div>
-        </div >
+
     );
 }
