@@ -16,7 +16,7 @@ export const assignmentsList = [
         dueDate: "Oct 26, 11:59 PM",
         dueText: "Due in 2 days",
         statusColor: "red",
-        action: "Submit Assignment",
+        action: "Attempt Assignment",
         icon: "upload_file",
         btnColor: "primary"
     },
@@ -71,7 +71,7 @@ export const assignmentsList = [
         dueDate: "Oct 29, 11:59 PM",
         dueText: "Due in 5 days",
         statusColor: "orange",
-        action: "Submit Assignment",
+        action: "Attempt Assignment",
         icon: "upload_file",
         btnColor: "primary"
     }
