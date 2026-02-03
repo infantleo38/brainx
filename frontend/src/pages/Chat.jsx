@@ -1,17 +1,69 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getChats, getMessages, sendMessage, markMessageRead, getCurrentUser, getCachedChats, getCachedUser, getWebSocketUrl } from '../services/api';
+import { getChats, getMessages, sendMessage, markMessageRead, getCurrentUser, getCachedChats, getCachedUser, getWebSocketUrl, createChat, uploadChatResource, API_BASE_URL } from '../services/api';
+import FilePreviewModal from '../components/FilePreviewModal';
 
 export default function Chat() {
+
     const [chats, setChats] = useState([]);
     const [activeChat, setActiveChat] = useState(null);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [pendingFile, setPendingFile] = useState(null); // File waitng for confirmation
+    const [isUploading, setIsUploading] = useState(false); // Track upload state
     const [readMessageIds, setReadMessageIds] = useState(new Set());
 
     // Ref for auto-scrolling to bottom
     const messagesEndRef = useRef(null);
+    const fileInputRef = useRef(null); // Ref for file input
+
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setPendingFile(file);
+        e.target.value = ''; // Reset input so same file can be selected again if cancelled
+    };
+
+    const handleConfirmSend = async (message) => {
+        if (!pendingFile || !activeChat) return;
+
+        const file = pendingFile;
+        setIsUploading(true);
+
+        try {
+            // 1. Upload the file
+            const resource = await uploadChatResource(activeChat.id, file);
+
+            // 2. Prepare message content
+            // 2. Prepare message content
+            let messageContent = message || "";
+
+            if (resource.file_url) {
+                if (file.type.startsWith('image/')) {
+                    messageContent += `\n\n![${file.name}](${resource.file_url})`;
+                } else {
+                    messageContent += `\n\n[${file.name}](${resource.file_url})`;
+                }
+            }
+            messageContent = messageContent.trim();
+
+            // 3. Send message
+            const messagePayload = {
+                message: messageContent,
+                chat_id: activeChat.id,
+                batch_id: activeChat.batch_id
+            };
+            await sendMessage(activeChat.id, messagePayload);
+
+        } catch (error) {
+            console.error("File upload failed", error);
+            alert("Failed to upload file");
+        } finally {
+            setIsUploading(false);
+            setPendingFile(null);
+        }
+    };
 
     useEffect(() => {
         const init = async () => {
@@ -20,13 +72,11 @@ export default function Chat() {
                 const cachedUser = getCachedUser();
                 const cachedChats = getCachedChats();
 
-                if (cachedUser) {
-                    setCurrentUser(cachedUser);
-                }
-
                 if (cachedChats) {
+                    console.log("Cached Chats:", cachedChats);
                     setChats(cachedChats);
                 }
+                // ...
 
                 // If we have both, we can stop loading immediately
                 if (cachedUser && cachedChats) {
@@ -39,6 +89,7 @@ export default function Chat() {
 
                 // 3. Network Fetch (Chats)
                 const chatsData = await getChats();
+                console.log("Network Chats Data:", chatsData);
                 setChats(chatsData);
 
                 if (chatsData.length > 0 && !activeChat) {
@@ -136,7 +187,106 @@ export default function Chat() {
 
     const [showGroupInfo, setShowGroupInfo] = useState(false);
 
+    // Handlers
+    const handleMemberClick = async (member) => {
+        if (!currentUser || member.user_id === currentUser.id) return;
+
+        // 1. Check if we already have a direct chat with this person
+        const existingChat = chats.find(c =>
+            c.chat_type === 'direct' &&
+            c.members.some(m => m.user_id === member.user_id)
+        );
+
+        if (existingChat) {
+            setActiveChat(existingChat);
+        } else {
+            // 2. Create new chat
+            try {
+                const newChatData = {
+                    chat_type: 'direct',
+                    initial_members: [
+                        { user_id: member.user_id, role: 'student' }
+                    ]
+                };
+                const createdChat = await createChat(newChatData);
+                setChats(prev => [createdChat, ...prev]);
+                setActiveChat(createdChat);
+            } catch (error) {
+                console.error("Failed to create chat", error);
+                // Optionally show error to user
+            }
+        }
+    };
+
     // ... (keep existing effects and handlers)
+
+    const handleDownload = (e, url, filename) => {
+        e.preventDefault();
+        const proxyUrl = `${API_BASE_URL}/chats/proxy-download?url=${encodeURIComponent(url)}`;
+        // Use a hidden link to trigger download naturally
+        const link = document.createElement('a');
+        link.href = proxyUrl;
+        // The backend sets Content-Disposition, so we don't strict need 'download' attr here, 
+        // but it doesn't hurt.
+        link.download = filename || 'download';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // Helper to render message content (Text, Image, File)
+    const renderMessageContent = (msg) => {
+        const isMe = msg.sender_id === currentUser?.id;
+        const content = msg.message;
+
+        // 1. Image: ![alt](url)
+        const imageRegex = /!\[(.*?)\]\((.*?)\)/;
+        if (imageRegex.test(content)) {
+            const match = content.match(imageRegex);
+            return (
+                <div className="rounded-lg overflow-hidden my-1">
+                    <img src={match[2]} alt={match[1]} className="max-w-full max-h-[300px] object-cover" />
+                </div>
+            );
+        }
+
+        // 2. File: [name](url)
+        const fileRegex = /\[(.*?)\]\((.*?)\)/;
+        if (fileRegex.test(content)) {
+            const match = content.match(fileRegex);
+            const fileName = match[1];
+            const url = match[2];
+            const ext = fileName.split('.').pop().toUpperCase();
+            // Remove the file link markdown from the content to show any caption text
+            const caption = content.replace(match[0], '').trim();
+
+            return (
+                <div>
+                    {caption && <p className={`text-sm mb-2 ${isMe ? 'text-white/95' : 'text-gray-800'}`}>{caption}</p>}
+                    <div className={`flex items-center gap-3 p-3 rounded-xl min-w-[240px] ${isMe ? 'bg-white/10' : 'bg-black/5'}`}>
+                        <div className="bg-white p-2.5 rounded-lg shadow-sm flex items-center justify-center">
+                            <span className="material-symbols-outlined text-primary text-[24px]">description</span>
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                            <p className={`text-sm font-semibold truncate leading-tight ${isMe ? 'text-white' : 'text-gray-800'}`}>{fileName}</p>
+                            <p className={`text-[11px] ${isMe ? 'text-white/70' : 'text-gray-500'}`}>{ext} • File</p>
+                        </div>
+                        <a
+                            href={url}
+                            onClick={(e) => handleDownload(e, url, fileName)}
+                            className={`p-2 rounded-full transition-colors ${isMe ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'}`}
+                            title="Download"
+                        >
+                            <span className="material-symbols-outlined text-[20px]">download</span>
+                        </a>
+                    </div>
+                </div>
+            );
+        }
+
+        // 3. Plain Text
+        return <p className={`text-sm leading-relaxed pb-1 ${isMe ? 'text-white/95' : ''}`}>{content}</p>;
+    };
 
     // Handlers
     const handleSendMessage = async () => {
@@ -169,7 +319,14 @@ export default function Chat() {
     const getChatName = (chat) => {
         if (chat.name) return chat.name;
         if (chat.chat_type === 'group') {
-            return `Group Chat ${chat.id}`;
+            return chat.batch ? chat.batch.batch_name : `Group Chat ${chat.id}`;
+        }
+        // For direct chats, find the other member
+        if (chat.chat_type === 'direct' && chat.members && currentUser) {
+            const otherMember = chat.members.find(m => m.user_id !== currentUser.id);
+            if (otherMember) {
+                return otherMember.user?.full_name || otherMember.user_name || 'Unknown User';
+            }
         }
         return `Chat ${chat.id}`;
     };
@@ -269,6 +426,13 @@ export default function Chat() {
                                     <span className="material-symbols-outlined text-[22px]">search</span>
                                 </button>
                                 <button
+                                    className={`p-2 rounded-full transition-colors ${showGroupInfo ? 'bg-primary/10 text-primary' : 'hover:bg-gray-50'}`}
+                                    title="View Members"
+                                    onClick={() => setShowGroupInfo(!showGroupInfo)}
+                                >
+                                    <span className="material-symbols-outlined text-[22px]">group</span>
+                                </button>
+                                <button
                                     className={`p-2 rounded-full transition-colors ${showGroupInfo ? 'bg-gray-100 text-gray-800' : 'hover:bg-gray-50'}`}
                                     title="Group info"
                                     onClick={() => setShowGroupInfo(!showGroupInfo)}
@@ -290,7 +454,7 @@ export default function Chat() {
                                 return (
                                     <div key={msg.id || index} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`max-w-[65%] min-w-[120px] rounded-2xl shadow-card p-3 relative group ${isMe ? 'bg-primary rounded-tr-none text-white shadow-primary/20' : 'bg-white rounded-tl-none text-gray-800'}`}>
-                                            <p className={`text-sm leading-relaxed pb-1 ${isMe ? 'text-white/95' : ''}`}>{msg.message}</p>
+                                            {renderMessageContent(msg)}
                                             <div className="flex justify-end items-center gap-1 mt-1">
                                                 <span className={`text-[10px] font-medium ${isMe ? 'text-white/70' : 'text-gray-400'}`}>
                                                     {formatTime(msg.created_at)}
@@ -313,7 +477,20 @@ export default function Chat() {
                                 <button className="p-2.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors">
                                     <span className="material-symbols-outlined text-[24px]">sentiment_satisfied</span>
                                 </button>
-                                <button className="p-2.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors">
+
+                                {/* File Upload Input */}
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileUpload}
+                                    style={{ display: 'none' }}
+                                />
+                                <button
+                                    className="p-2.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    title="Add attachment"
+                                    disabled={!activeChat}
+                                >
                                     <span className="material-symbols-outlined text-[24px]">add</span>
                                 </button>
                                 <div className="flex-1 relative">
@@ -398,6 +575,67 @@ export default function Chat() {
                                     <p className="text-xs text-gray-500 mt-3">Group created by you, on 5/12/2025 at 5:19 pm</p>
                                 </div>
 
+                                {/* Members List */}
+                                <div className="bg-white px-6 py-5 mb-3 shadow-sm">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <span className="text-sm font-medium text-gray-900">
+                                            {activeChat.members ? `${activeChat.members.length} Members` : 'Members'}
+                                        </span>
+                                        <button className="text-gray-400 hover:text-gray-800">
+                                            <span className="material-symbols-outlined text-[20px]">search</span>
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        {activeChat.members && activeChat.members.map(member => (
+                                            <div
+                                                key={member.id}
+                                                onClick={() => handleMemberClick(member)}
+                                                className="flex items-center gap-3 cursor-pointer group hover:bg-gray-50 p-2 rounded-lg -mx-2 transition-colors"
+                                            >
+                                                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-primary font-bold overflow-hidden relative">
+                                                    {member.user?.profile_image ? (
+                                                        <img src={member.user.profile_image} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        (member.user?.full_name || member.user_name || '?').charAt(0)
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-center">
+                                                        <h4 className="text-sm font-medium text-gray-900 truncate">
+                                                            {member.user?.full_name || member.user_name || 'Unknown User'}
+                                                        </h4>
+                                                        {member.role === 'admin' && (
+                                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">
+                                                                Group Admin
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {/* Contact Info Privacy Logic */}
+                                                    {(() => {
+                                                        const isCurrentUserStudent = currentUser?.role === 'student';
+                                                        const isMemberStudent = member.role === 'student';
+
+                                                        // Hide contact if BOTH current user AND member are students
+                                                        const showContact = !(isCurrentUserStudent && isMemberStudent);
+
+                                                        if (!showContact) return null;
+
+                                                        return (
+                                                            <div className="text-xs text-gray-500 truncate flex flex-col">
+                                                                <span>{member.user?.email || member.user_email || ''}</span>
+                                                                {member.user?.phone && (
+                                                                    <span>{member.user.phone}</span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
                                 {/* Options */}
                                 <div className="bg-white shadow-sm mb-3">
                                     <div className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer">
@@ -471,7 +709,14 @@ export default function Chat() {
                         <p>Select a chat to start messaging</p>
                     </div>
                 </div>
-            )}
+            )
+            }
+            {/* File Preview Modal */}
+            <FilePreviewModal
+                file={pendingFile}
+                onClose={() => setPendingFile(null)}
+                onSend={handleConfirmSend}
+            />
         </div>
     );
 

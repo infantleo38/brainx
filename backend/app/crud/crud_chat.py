@@ -5,14 +5,17 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy import desc, func, case, and_
 
-from app.models.chat import Chat, ChatMember, Message, ChatMemberRoleEnum, MessageRead
-from app.schemas.chat import ChatCreate, ChatUpdate, MessageCreate, ChatMemberCreate
+from app.models.chat import Chat, ChatMember, Message, ChatMemberRoleEnum, MessageRead, ChatResource
+from app.schemas.chat import ChatCreate, ChatUpdate, MessageCreate, ChatMemberCreate, ChatResourceCreate
 
 class CRUDChat:
     async def get(self, db: AsyncSession, id: int) -> Optional[Chat]:
         result = await db.execute(
             select(Chat)
-            .options(selectinload(Chat.members).selectinload(ChatMember.user))
+            .options(
+                selectinload(Chat.members).selectinload(ChatMember.user),
+                selectinload(Chat.batch)
+            )
             .filter(Chat.id == id)
         )
         return result.scalars().first()
@@ -22,13 +25,16 @@ class CRUDChat:
         result = await db.execute(
             select(Chat)
             .join(ChatMember)
-            .options(selectinload(Chat.members).selectinload(ChatMember.user))
+            .options(
+                selectinload(Chat.members).selectinload(ChatMember.user),
+                selectinload(Chat.batch)
+            )
             .filter(ChatMember.user_id == user_id)
             .order_by(desc(Chat.created_at))
             .offset(skip)
             .limit(limit)
         )
-        return result.scalars().all()
+        return result.unique().scalars().all()
 
     async def create(self, db: AsyncSession, *, obj_in: ChatCreate, created_by: UUID) -> Chat:
         db_obj = Chat(
@@ -93,6 +99,19 @@ class CRUDChat:
         await db.commit()
         await db.refresh(member)
         return member
+
+    async def create_resource(self, db: AsyncSession, *, obj_in: ChatResourceCreate, chat_id: int, sender_id: UUID) -> ChatResource:
+        db_obj = ChatResource(
+            chat_id=chat_id,
+            sender_id=sender_id,
+            file_url=obj_in.file_url,
+            file_name=obj_in.file_name,
+            file_type=obj_in.file_type
+        )
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
 
 class CRUDMessage:
     async def create(self, db: AsyncSession, *, obj_in: MessageCreate, sender_id: UUID) -> Message:

@@ -62,9 +62,32 @@ class ChatMemberInDBBase(ChatMemberBase):
     class Config:
         from_attributes = True
 
+# --- User Schema for Chat ---
+class UserSimple(BaseModel):
+    id: UUID
+    full_name: str
+    email: str
+    phone: Optional[str] = None
+    profile_image: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
 class ChatMember(ChatMemberInDBBase):
     user_name: Optional[str] = None
     user_email: Optional[str] = None
+    user: Optional[UserSimple] = None
+
+# --- Chat Schemas ---
+class ChatBase(BaseModel):
+    chat_type: ChatTypeEnum
+    batch_id: Optional[int] = None
+    is_official: Optional[bool] = False
+    group_icon: Optional[str] = None
+    student_id: Optional[UUID] = None
+
+class ChatCreate(ChatBase):
+    initial_members: Optional[List[ChatMemberCreate]] = []
 
 # --- Chat Schemas ---
 class ChatBase(BaseModel):
@@ -89,6 +112,32 @@ class ChatInDBBase(ChatBase):
     class Config:
         from_attributes = True
 
+class BatchSimple(BaseModel):
+    id: int
+    batch_name: str
+    
+    class Config:
+        from_attributes = True
+
 class Chat(ChatInDBBase):
     members: List[ChatMember] = []
     latest_message: Optional[Message] = None
+    batch: Optional[BatchSimple] = None
+
+# --- Resource Schemas ---
+class ChatResourceBase(BaseModel):
+    file_url: str
+    file_name: str
+    file_type: Optional[str] = None
+
+class ChatResourceCreate(ChatResourceBase):
+    pass
+
+class ChatResource(ChatResourceBase):
+    id: int
+    chat_id: int
+    sender_id: UUID
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True

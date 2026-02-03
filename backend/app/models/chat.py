@@ -36,6 +36,7 @@ class Chat(Base):
     student = relationship("User", foreign_keys=[student_id])
     members = relationship("ChatMember", back_populates="chat", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="chat", cascade="all, delete-orphan")
+    resources = relationship("ChatResource", back_populates="chat", cascade="all, delete-orphan")
 
 class ChatMember(Base):
     __tablename__ = "chat_members"
@@ -50,6 +51,14 @@ class ChatMember(Base):
     chat = relationship("Chat", back_populates="members")
     user = relationship("User", foreign_keys=[user_id])
     role_obj = relationship("Role")
+
+    @property
+    def user_name(self):
+        return self.user.full_name if self.user else None
+
+    @property
+    def user_email(self):
+        return self.user.email if self.user else None
 
 class Message(Base):
     __tablename__ = "messages"
@@ -79,3 +88,19 @@ class MessageRead(Base):
     message = relationship("Message", back_populates="reads")
     user = relationship("User", foreign_keys=[user_id])
     chat = relationship("Chat", foreign_keys=[chat_id])
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class ChatResource(Base):
+    __tablename__ = "chat_resources"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(Integer, ForeignKey("chats.id", ondelete="CASCADE"), nullable=False)
+    sender_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    file_url = Column(String, nullable=False)
+    file_name = Column(String, nullable=False)
+    file_type = Column(String, nullable=True) # e.g. 'image/jpeg', 'application/pdf'
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    chat = relationship("Chat", back_populates="resources")
+    sender = relationship("User", foreign_keys=[sender_id])

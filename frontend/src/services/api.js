@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
+export const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
 export const getWebSocketUrl = (chatId) => {
     return API_BASE_URL.replace('http', 'ws').replace('https', 'wss') + `/chats/${chatId}/ws`;
@@ -283,7 +283,28 @@ export const getCachedChats = () => chatsCache;
 export const getChats = async (skip = 0, limit = 100, token = null) => {
     const data = await fetchWithAuth(`/chats/?skip=${skip}&limit=${limit}`, {}, token);
     chatsCache = data;
+    chatsCache = data;
     return data;
+};
+
+export const createChat = async (chatData, token = null) => {
+    return fetchWithAuth('/chats/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(chatData),
+    }, token);
+};
+
+export const uploadChatResource = async (chatId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return fetchWithAuth(`/chats/${chatId}/resources`, {
+        method: 'POST',
+        body: formData, // No Content-Type header needed, browser sets it for FormData
+    });
 };
 
 export const getMessages = async (chatId, skip = 0, limit = 50, token = null) => {
