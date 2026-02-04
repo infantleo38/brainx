@@ -9,4 +9,6 @@ class Base(DeclarativeBase):
 # from app.models.user import User
 # from app.models.role import Role
 # from app.models.permission import Permission
-
+# from app.models.chat import Chat, ChatMember, Message  # noqa
+# from app.models.teacher_slots import TeacherSlot  # noqa
+# from app.models.attendance import Attendance  # noqa

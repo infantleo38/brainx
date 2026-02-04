@@ -28,6 +28,8 @@ import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import TeacherClasses from './pages/teacher/TeacherClasses';
 import MeetingManagement from './pages/teacher/MeetingManagement';
 import TeacherClassDetails from './pages/teacher/TeacherClassDetails';
+import Users from './pages/Users';
+import Parents from './pages/Parents';
 
 function App() {
   return (
@@ -63,6 +65,8 @@ function App() {
             <Route path="/courses/create" element={<CreateCourse />} />
             <Route path="/teachers" element={<Teachers />} />
             <Route path="/classes/create" element={<CreateClass />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/parents" element={<Parents />} />
           </Route>
         </Routes>
       </div>

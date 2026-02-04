@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getClassSessionsByBatch, getBatch, getBatchResources } from '../../services/api';
+import { getClassSessionsByBatch, getBatch, getBatchResources, submitAttendance, getSessionAttendance } from '../../services/api';
 
 export default function TeacherClassDetails() {
     const { courseId } = useParams();
@@ -8,6 +8,13 @@ export default function TeacherClassDetails() {
     const [batchDetails, setBatchDetails] = useState(null);
     const [resources, setResources] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Attendance State
+    const [allSessions, setAllSessions] = useState([]);
+    const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
+    const [selectedSessionForAttendance, setSelectedSessionForAttendance] = useState(null);
+    const [attendanceList, setAttendanceList] = useState([]);
+    const [submittingAttendance, setSubmittingAttendance] = useState(false);
 
     const formatFileSize = (bytes) => {
         if (bytes === 0) return '0 Bytes';
@@ -53,8 +60,13 @@ export default function TeacherClassDetails() {
                 // 2. Class Sessions
                 if (sessionsResult.status === 'fulfilled') {
                     const sessions = sessionsResult.value;
+
                     if (sessions && sessions.length > 0) {
-                        setNextSession(sessions[0]);
+                        setAllSessions(sessions);
+                        // Find next upcoming session
+                        const now = new Date();
+                        const upcoming = sessions.find(s => new Date(s.start_time) > now);
+                        setNextSession(upcoming || sessions[sessions.length - 1]); // Default to last if none upcoming
                     }
                 } else {
                     // It's common to have no sessions, so we just log clearly
@@ -95,6 +107,67 @@ export default function TeacherClassDetails() {
         };
         fetchSessions();
     }, [courseId]);
+
+    const handleOpenAttendance = async (session) => {
+        setSelectedSessionForAttendance(session);
+        setIsAttendanceModalOpen(true);
+        // Initialize attendance list with all students
+        // Default to 'present'
+        const students = batchDetails?.members || [];
+
+        try {
+            // Check if attendance already exists
+            const existingAttendance = await getSessionAttendance(session.id);
+
+            const initialList = students.map(student => {
+                const existingRecord = existingAttendance.find(r => r.student_id === student.user_id);
+                return {
+                    student_id: student.user_id,
+                    student_name: student.user_name,
+                    status: existingRecord ? existingRecord.status : 'present',
+                    remarks: existingRecord ? existingRecord.remarks : ''
+                };
+            });
+            setAttendanceList(initialList);
+        } catch (error) {
+            console.error("Failed to fetch existing attendance", error);
+            // Fallback to default
+            setAttendanceList(students.map(s => ({
+                student_id: s.user_id,
+                student_name: s.user_name,
+                status: 'present',
+                remarks: ''
+            })));
+        }
+    };
+
+    const updateAttendanceStatus = (index, newStatus) => {
+        const newList = [...attendanceList];
+        newList[index].status = newStatus;
+        setAttendanceList(newList);
+    };
+
+    const handleSubmitAttendance = async () => {
+        setSubmittingAttendance(true);
+        try {
+            // Ensure each record has session_id as required by backend schema
+            const formattedRecords = attendanceList.map(record => ({
+                student_id: record.student_id,
+                session_id: selectedSessionForAttendance.id,
+                status: record.status,
+                remarks: record.remarks
+            }));
+
+            await submitAttendance(selectedSessionForAttendance.id, formattedRecords);
+            alert("Attendance submitted successfully!");
+            setIsAttendanceModalOpen(false);
+        } catch (error) {
+            console.error("Failed to submit attendance", error);
+            alert("Failed to submit attendance.");
+        } finally {
+            setSubmittingAttendance(false);
+        }
+    };
 
     if (loading) {
         return <div className="h-full flex items-center justify-center">Loading...</div>;
@@ -168,8 +241,55 @@ export default function TeacherClassDetails() {
                         </div>
                     </div>
 
+
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div className="lg:col-span-2 space-y-8">
+                            <section className="bg-white rounded-[16px] border border-gray-100 custom-shadow-soft overflow-hidden shadow-card">
+                                <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                                    <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-primary">calendar_month</span>
+                                        Class Sessions
+                                    </h2>
+                                </div>
+                                <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
+                                    {allSessions.length > 0 ? (
+                                        allSessions.map((session) => (
+                                            <div key={session.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900">
+                                                        {formatDate(session.start_time)}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        {new Date(session.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        {' - '}
+                                                        {new Date(session.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    {/* Show status chip if needed, e.g. based on time */}
+                                                    {new Date(session.start_time) < new Date() ? (
+                                                        <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-[10px] font-bold uppercase">Completed</span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase">Upcoming</span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleOpenAttendance(session)}
+                                                        className="px-3 py-1.5 border border-primary text-primary hover:bg-primary hover:text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[16px]">edit_calendar</span>
+                                                        Attendance
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="p-8 text-center text-gray-400 text-sm">
+                                            No class sessions scheduled.
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+
                             <section className="bg-white rounded-[16px] border border-gray-100 custom-shadow-soft overflow-hidden shadow-card">
                                 <div className="p-6 border-b border-gray-50 flex items-center justify-between">
                                     <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -368,6 +488,99 @@ export default function TeacherClassDetails() {
                     </section>
                 </div>
             </div>
+            {/* Attendance Modal */}
+            {isAttendanceModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border border-white/20 max-h-[80vh]">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <h3 className="font-bold text-xl text-gray-900">Mark Attendance</h3>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {selectedSessionForAttendance && formatDate(selectedSessionForAttendance.start_time)} •
+                                    {selectedSessionForAttendance && new Date(selectedSessionForAttendance.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsAttendanceModalOpen(false)}
+                                className="text-gray-400 hover:text-gray-600 rounded-full p-2 hover:bg-gray-100 transition-colors"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto flex-1">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="bg-gray-50/50">
+                                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Student</th>
+                                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Status</th>
+                                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {attendanceList.map((record, index) => (
+                                        <tr key={record.student_id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-4 py-3">
+                                                <span className="text-sm font-bold text-gray-900 block">{record.student_name}</span>
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="relative inline-block w-32">
+                                                    <select
+                                                        value={record.status}
+                                                        onChange={(e) => updateAttendanceStatus(index, e.target.value)}
+                                                        className={`appearance-none w-full px-4 py-1.5 pr-8 rounded-full text-xs font-bold capitalize outline-none cursor-pointer transition-all border ${record.status === 'present' ? 'bg-green-100 text-green-700 border-green-200' :
+                                                            record.status === 'absent' ? 'bg-red-100 text-red-700 border-red-200' :
+                                                                record.status === 'late' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                                                    'bg-blue-100 text-blue-700 border-blue-200'
+                                                            }`}
+                                                    >
+                                                        <option value="present">Present</option>
+                                                        <option value="absent">Absent</option>
+                                                        <option value="late">Late</option>
+                                                        <option value="excused">Excused</option>
+                                                    </select>
+                                                    <div className={`pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 ${record.status === 'present' ? 'text-green-700' :
+                                                        record.status === 'absent' ? 'text-red-700' :
+                                                            record.status === 'late' ? 'text-orange-700' :
+                                                                'text-blue-700'
+                                                        }`}>
+                                                        <span className="material-symbols-outlined text-[16px]">expand_more</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <input
+                                                    type="text"
+                                                    value={record.remarks}
+                                                    onChange={(e) => {
+                                                        const newList = [...attendanceList];
+                                                        newList[index].remarks = e.target.value;
+                                                        setAttendanceList(newList);
+                                                    }}
+                                                    placeholder="Optional remarks..."
+                                                    className="w-full bg-transparent border-b border-transparent focus:border-primary text-sm focus:outline-none transition-colors"
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsAttendanceModalOpen(false)}
+                                className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors">
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubmitAttendance}
+                                disabled={submittingAttendance}
+                                className="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-indigo-700 shadow-soft-purple transition-all flex items-center gap-2">
+                                {submittingAttendance ? 'Saving...' : 'Save Attendance'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

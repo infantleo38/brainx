@@ -24,7 +24,10 @@ class ClassSessionUpdate(BaseModel):
     meeting_link: Optional[str] = None
     is_recorded: Optional[bool] = None
 
+from app.schemas.course import Course
+
 class ClassSession(ClassSessionBase):
     id: int
+    course: Optional[Course] = None
 
     model_config = ConfigDict(from_attributes=True)

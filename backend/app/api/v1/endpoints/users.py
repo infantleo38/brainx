@@ -138,15 +138,17 @@ async def delete_user(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Delete a user.
+    Soft delete a user (set status to disabled).
     """
     user = await crud_user.get(db, id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    deleted_user = await crud_user.remove(db, id=user_id)
+    # Soft delete: update status to False
+    updated_user = await crud_user.update(db, db_obj=user, obj_in={'status': False})
+    
     return APIResponse(
         status_code=200,
-        message="User deleted successfully",
-        data=deleted_user
+        message="User deactivated successfully",
+        data=updated_user
     )

@@ -26,10 +26,21 @@ export default function CreateClass() {
         teacher_id: '',
         start_date: '',
         end_date: '',
-        schedule_time: '',
         total_hours: '',
         status: true
     });
+
+    const [scheduleStart, setScheduleStart] = useState('');
+    const [scheduleEnd, setScheduleEnd] = useState('');
+
+    const to12Hour = (time24) => {
+        if (!time24) return '';
+        const [hours, minutes] = time24.split(':');
+        const h = parseInt(hours, 10);
+        const suffix = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 || 12;
+        return `${h12}:${minutes} ${suffix}`;
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -71,6 +82,7 @@ export default function CreateClass() {
                 teacher_id: formData.teacher_id || null, // UUID should not be parsed as int
                 start_date: formData.start_date || null,
                 end_date: formData.end_date || null,
+                schedule_time: (scheduleStart && scheduleEnd) ? `${to12Hour(scheduleStart)} - ${to12Hour(scheduleEnd)}` : '',
                 total_hours: formData.total_hours ? parseInt(formData.total_hours) : 0,
                 members: members.map(m => ({
                     user_id: m.id,
@@ -260,14 +272,24 @@ export default function CreateClass() {
                                     <div>
                                         <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Schedule
                                             Time</label>
-                                        <div className="relative">
-                                            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">schedule</span>
-                                            <input
-                                                name="schedule_time"
-                                                value={formData.schedule_time}
-                                                onChange={handleChange}
-                                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary placeholder:text-slate-400"
-                                                placeholder="e.g. 10:00 AM - 12:00 PM" type="text" />
+                                        <div className="flex gap-2">
+                                            <div className="relative flex-1">
+                                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">schedule</span>
+                                                <input
+                                                    value={scheduleStart}
+                                                    onChange={(e) => setScheduleStart(e.target.value)}
+                                                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary placeholder:text-slate-400 appearance-none"
+                                                    type="time" />
+                                            </div>
+                                            <span className="self-center text-slate-400 font-medium text-xs">to</span>
+                                            <div className="relative flex-1">
+                                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">schedule</span>
+                                                <input
+                                                    value={scheduleEnd}
+                                                    onChange={(e) => setScheduleEnd(e.target.value)}
+                                                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary placeholder:text-slate-400 appearance-none"
+                                                    type="time" />
+                                            </div>
                                         </div>
                                     </div>
                                     <div>

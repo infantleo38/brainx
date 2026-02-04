@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { generateMeetingLink, createClassSession, getCurrentUser, getBatches } from '../../services/api';
 
 export default function MeetingManagement() {
-    const { courseId } = useParams();
+    const { courseId } = useParams(); // Note: Route param is :courseId but it actually contains batchId from TeacherClasses
     const [platform, setPlatform] = useState('zoom'); // 'zoom' or 'meet'
     const [url, setUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -19,10 +19,20 @@ export default function MeetingManagement() {
                 setUser(userData);
 
                 const batchesData = await getBatches();
-                const courseBatches = batchesData.filter(b => b.course_id === parseInt(courseId));
-                setBatches(courseBatches);
-                if (courseBatches.length > 0) {
-                    setSelectedBatchId(courseBatches[0].id);
+                // The URL param 'courseId' is actually the batch ID passed from TeacherClasses
+                const batchIdParam = parseInt(courseId);
+
+                // Find the specific batch
+                const targetBatch = batchesData.find(b => b.id === batchIdParam);
+
+                if (targetBatch) {
+                    setBatches([targetBatch]);
+                    setSelectedBatchId(targetBatch.id);
+                } else {
+                    // Fallback: If logic was correct and it was courseId, keep existing behavior or handle error
+                    // But given the bug, we assume it's batchId. If not found, maybe show error?
+                    console.warn("Batch not found for ID:", batchIdParam);
+                    setBatches([]);
                 }
             } catch (error) {
                 console.error("Failed to fetch data", error);
@@ -51,15 +61,22 @@ export default function MeetingManagement() {
             const startTime = new Date();
             const endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
 
+            // Get proper course_id from selected batch
+            const selectedBatch = batches.find(b => b.id === selectedBatchId);
+            const actualCourseId = selectedBatch ? selectedBatch.course_id : (parseInt(courseId) || 1);
+
+            const teacherId = user.id || user.data?.id;
+
             const sessionData = {
                 batch_id: selectedBatchId,
-                course_id: parseInt(courseId) || 1, // Default to 1 if parsing fails
-                teacher_id: user.id || user.data.id, // Handle different response structures
+                course_id: actualCourseId,
+                teacher_id: teacherId,
                 start_time: startTime.toISOString(),
                 end_time: endTime.toISOString(),
                 meeting_link: url,
                 is_recorded: settings.autoRecord
             };
+            console.log("Saving session payload:", sessionData);
 
             await createClassSession(sessionData);
             alert("Class session created and students notified!");
