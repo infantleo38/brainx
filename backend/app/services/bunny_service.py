@@ -44,4 +44,17 @@ class BunnyService:
                 return f"failed_upload_url/{filename}"
                 # raise Exception(f"Failed to upload to Bunny.net: {response.text}")
 
+    async def download_json(self, url: str) -> dict:
+        """
+        Downloads a JSON file from Bunny.net CDN and returns it as a dictionary.
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise Exception(f"Failed to download from Bunny.net: {response.status_code} - {response.text}")
+
 bunny_service = BunnyService()
+
