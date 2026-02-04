@@ -156,14 +156,14 @@ export default function TeacherClasses() {
                                         </p>
                                         <div className="mt-auto space-y-3">
                                             <Link
-                                                to={`/teacher/classes/${course.courseId}/details`}
+                                                to={`/teacher/classes/${course.id}/details`}
                                                 className="w-full py-2.5 bg-primary hover:bg-primary-dark text-white text-sm font-semibold rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                                             >
                                                 <span className="material-symbols-outlined text-[18px]">menu_book</span>
                                                 View Class Management
                                             </Link>
                                             <Link
-                                                to={`/teacher/classes/${course.courseId}/meeting`}
+                                                to={`/teacher/classes/${course.id}/meeting`}
                                                 className="w-full py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 group/btn"
                                             >
                                                 <span className="material-symbols-outlined text-[18px] text-gray-400 group-hover/btn:text-primary transition-colors">link</span>

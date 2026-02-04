@@ -414,6 +414,18 @@ export const createClassSession = async (sessionData, token = null) => {
     }, token);
 };
 
+export const getClassSessionsByBatch = async (batchId, skip = 0, limit = 100, token = null) => {
+    return fetchWithAuth(`/class-sessions/by-batch/${batchId}?skip=${skip}&limit=${limit}`, {}, token);
+};
+
+export const getBatchResources = async (batchId) => {
+    const response = await api.get(`/classes/${batchId}/resources`);
+    return response; // api.get already returns json body or response.data depending on implementation, but fetchWithAuth returns response.json()
+    // Wait, let's double check api.get implementation above.
+    // api.get calls fetchWithAuth. fetchWithAuth returns response.json().
+    // So 'response' here IS the data (the array).
+};
+
 const api = {
     get: (url, options = {}, token = null) => fetchWithAuth(url, { ...options, method: 'GET' }, token),
     post: (url, data, options = {}, token = null) => fetchWithAuth(url, {

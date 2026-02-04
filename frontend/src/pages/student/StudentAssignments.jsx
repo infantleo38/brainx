@@ -26,9 +26,9 @@ export default function StudentAssignments() {
                 <div className="flex items-center gap-6">
                     <div className="relative hidden md:block group">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-gray-400 text-xl group-focus-within:text-primary transition-colors">search</span>
-                        <input
-                            className="pl-10 pr-4 py-2 w-72 bg-gray-50 border border-transparent rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/20 focus:bg-white transition-all placeholder-gray-400"
-                            placeholder="Search assignments..."
+                        <input 
+                            className="pl-10 pr-4 py-2 w-72 bg-gray-50 border border-transparent rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary/20 focus:bg-white transition-all placeholder-gray-400" 
+                            placeholder="Search assignments..." 
                             type="text"
                         />
                     </div>
@@ -39,10 +39,10 @@ export default function StudentAssignments() {
                             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                         </button>
                         <button className="flex items-center gap-2 hover:bg-gray-50 p-1 pr-3 rounded-full transition-colors">
-                            <img
-                                alt="User"
-                                className="w-8 h-8 rounded-full object-cover"
-                                src={user?.profile_image || "https://ui-avatars.com/api/?name=" + (user?.full_name || "User") + "&background=random"}
+                            <img 
+                                alt="User" 
+                                className="w-8 h-8 rounded-full object-cover" 
+                                src={user?.profile_image || "https://ui-avatars.com/api/?name=" + (user?.full_name || "User") + "&background=random"} 
                             />
                             <span className="material-symbols-outlined text-gray-400 text-lg">expand_more</span>
                         </button>
@@ -146,14 +146,7 @@ export default function StudentAssignments() {
                                 </div>
 
                                 <div className="w-full md:w-auto flex justify-end">
-                                    <button
-                                        onClick={() => {
-                                            if (assignment.action === 'Attempt Assignment') {
-                                                navigate(`/student/assignments/${assignment.id}/attempt`);
-                                            }
-                                        }}
-                                        className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-sm ${assignment.btnColor === 'primary' ? 'bg-primary text-white shadow-primary/30 hover:bg-primary-dark' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}
-                                    >
+                                    <button className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-sm ${assignment.btnColor === 'primary' ? 'bg-primary text-white shadow-primary/30 hover:bg-primary-dark' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}>
                                         {assignment.icon && <span className="material-symbols-outlined text-[18px]">{assignment.icon}</span>}
                                         {assignment.action}
                                     </button>

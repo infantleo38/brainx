@@ -44,4 +44,38 @@ class BunnyService:
                 return f"failed_upload_url/{filename}"
                 # raise Exception(f"Failed to upload to Bunny.net: {response.text}")
 
+    async def list_files(self, path: str) -> list:
+        """
+        List files in a directory on Bunny.net storage.
+        path: Directory path (e.g. 'resources/groups/123/')
+        """
+        if not self.api_key or not self.storage_zone:
+            print("Bunny.net configuration missing. Skipping list_files.")
+            return []
+
+        # Ensure path ends with slash for directory listing
+        if not path.endswith("/"):
+            path += "/"
+            
+        url = f"{self.base_url}/{path}"
+        headers = {
+            "AccessKey": self.api_key,
+            "Accept": "application/json"
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    return response.json()
+                elif response.status_code == 404:
+                     # Directory likely doesn't exist yet
+                    return []
+                else:
+                    print(f"Failed to list files from Bunny.net: {response.status_code} - {response.text}")
+                    return []
+            except Exception as e:
+                print(f"Error listing files: {e}")
+                return []
+
 bunny_service = BunnyService()

@@ -18,6 +18,7 @@ class CRUDTeacherCourse:
     async def get_by_teacher_and_course(self, db: AsyncSession, *, teacher_id: UUID, course_id: int) -> Optional[TeacherCourse]:
         result = await db.execute(
             select(TeacherCourse)
+            .options(joinedload(TeacherCourse.teacher))
             .filter(TeacherCourse.teacher_id == teacher_id, TeacherCourse.course_id == course_id)
         )
         return result.scalars().first()
@@ -30,7 +31,8 @@ class CRUDTeacherCourse:
         db.add(db_obj)
         await db.commit()
         await db.refresh(db_obj)
-        return db_obj
+        # Fetch with relationships
+        return await self.get(db, db_obj.id)
 
     async def remove(self, db: AsyncSession, *, id: int) -> TeacherCourse:
         result = await db.execute(select(TeacherCourse).filter(TeacherCourse.id == id))
@@ -42,6 +44,7 @@ class CRUDTeacherCourse:
     async def get_by_teacher(self, db: AsyncSession, *, teacher_id: UUID, skip: int = 0, limit: int = 100) -> List[TeacherCourse]:
         result = await db.execute(
             select(TeacherCourse)
+            .options(joinedload(TeacherCourse.teacher))
             .filter(TeacherCourse.teacher_id == teacher_id)
             .offset(skip).limit(limit)
         )

@@ -67,17 +67,17 @@ export default function FilePreviewModal({ file, onClose, onSend, isLoading }) {
                         <span className="material-symbols-outlined">send</span>
                     </button>
                 </div>
-            </div>
-            {/* Loading Overlay */}
-            {isLoading && (
-                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center z-20">
-                    <div className="flex flex-col items-center gap-3">
-                        <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent"></div>
-                        <span className="text-gray-700 font-medium">Uploading...</span>
-                    </div>
-                </div>
-            )}
-        </div>
 
+                {/* Loading Overlay */}
+                {isLoading && (
+                    <div className="absolute inset-0 bg-white/50 backdrop-blur-sm flex items-center justify-center z-20">
+                        <div className="flex flex-col items-center gap-3">
+                            <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent"></div>
+                            <span className="text-gray-700 font-medium">Uploading...</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
     );
 }

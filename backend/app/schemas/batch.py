@@ -79,6 +79,7 @@ class BatchMemberDetail(BaseModel):
 
 class BatchDetail(Batch):
     teacher_name: Optional[str] = None
+    course_name: Optional[str] = None
     members: List[BatchMemberDetail] = []
 
     @staticmethod
