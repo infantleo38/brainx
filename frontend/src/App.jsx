@@ -21,6 +21,8 @@ import StudentDashboard from './pages/student/StudentDashboard';
 import StudentCourseDetails from './pages/student/StudentCourseDetails';
 import StudentMyCourses from './pages/student/StudentMyCourses';
 import StudentAssignments from './pages/student/StudentAssignments';
+import AssessmentAttempt from './pages/student/AssessmentAttempt';
+import SubmissionView from './pages/student/SubmissionView';
 import StudentExam from './pages/student/StudentExam';
 import StudentAttendance from './pages/student/StudentAttendance';
 import Teachers from './pages/Teachers';
@@ -42,7 +44,9 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
-
+          {/* Assessment Attempt - No Sidebar (Fullscreen Mode) */}
+          <Route path="/student/assignments/:assignmentId/attempt" element={<AssessmentAttempt />} />
+          <Route path="/student/submission/:assessmentId" element={<SubmissionView />} />
           {/* Protected Routes with Layout */}
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
