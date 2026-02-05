@@ -3,8 +3,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.models.user import User
+from app.models.enrollment import Enrollment
+from app.models.batch import BatchMember
+from app.models.chat import ChatMember, Message, MessageRead, ChatResource, Chat
+from app.models.attendance import Attendance
+from app.models.teacher_course import TeacherCourse
+from app.models.teacher_slots import TeacherTimeSlot
+from app.models.parent_student import ParentStudent
+from app.models.attendance import Attendance
+from app.models.teacher_course import TeacherCourse
+from app.models.teacher_slots import TeacherTimeSlot
+from app.models.parent_student import ParentStudent
+from app.models.assessment import AssessmentSubmission
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash
+from sqlalchemy import delete, update
 
 class CRUDUser:
     async def get_by_email(self, db: AsyncSession, *, email: str) -> Optional[User]:
@@ -73,6 +86,65 @@ class CRUDUser:
     async def remove(self, db: AsyncSession, *, id: Any) -> User:
         result = await db.execute(select(User).filter(User.id == id))
         obj = result.scalars().first()
+        if not obj:
+            return None
+
+        # Manually delete related records to avoid FK constraints
+        # 1. Enrollments
+        await db.execute(delete(Enrollment).where(Enrollment.student_id == id))
+        await db.execute(delete(Enrollment).where(Enrollment.teacher_id == id))
+
+        # 2. Batch Members
+        await db.execute(delete(BatchMember).where(BatchMember.user_id == id))
+
+        # 3. Chat Members
+        await db.execute(delete(ChatMember).where(ChatMember.user_id == id))
+
+        # 4. Messages (Sender) - This cascades to MessageReads usually, but better to be safe
+        # Note: If we delete messages, we lose history. Ideally we'd validly anonymize, but for now delete.
+        await db.execute(delete(Message).where(Message.sender_id == id))
+        
+        # 5. Message Reads
+        await db.execute(delete(MessageRead).where(MessageRead.user_id == id))
+
+        # 6. Chat Resources
+        await db.execute(delete(ChatResource).where(ChatResource.sender_id == id))
+
+        # 7. Attendance
+        await db.execute(delete(Attendance).where(Attendance.student_id == id))
+
+        # 8. Teacher Courses
+        await db.execute(delete(TeacherCourse).where(TeacherCourse.teacher_id == id))
+
+        # 9. Teacher Slots
+        await db.execute(delete(TeacherTimeSlot).where(TeacherTimeSlot.teacher_id == id))
+
+        # 10. Parent-Student Links
+        await db.execute(delete(ParentStudent).where(ParentStudent.parent_id == id))
+        await db.execute(delete(ParentStudent).where(ParentStudent.student_id == id))
+
+        # 11. Assessment Submissions
+        await db.execute(delete(AssessmentSubmission).where(AssessmentSubmission.student_id == id))
+        
+        # 12. Handle Chats created by user (update to null/system or delete if orphaned?)
+        # Reassign chats to another admin if possible to preserve history (e.g. batch chats)
+        # Find another admin
+        result_admin = await db.execute(
+            select(User).filter(User.role == 'admin', User.id != id).limit(1)
+        )
+        substitute_admin = result_admin.scalars().first()
+        
+        if substitute_admin:
+            # Reassign chats to this admin
+            await db.execute(
+                update(Chat)
+                .where(Chat.created_by == id)
+                .values(created_by=substitute_admin.id)
+            )
+        else:
+            # No substitute found (rare/dangerous), we must delete the chats to proceed
+            await db.execute(delete(Chat).where(Chat.created_by == id))
+
         await db.delete(obj)
         await db.commit()
         return obj

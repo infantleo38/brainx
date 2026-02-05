@@ -1,8 +1,177 @@
-import React from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { getClassSessionsByBatch, getBatch, getBatchResources, submitAttendance, getSessionAttendance } from '../../services/api';
 
 export default function TeacherClassDetails() {
     const { courseId } = useParams();
+    const [nextSession, setNextSession] = useState(null);
+    const [batchDetails, setBatchDetails] = useState(null);
+    const [resources, setResources] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // Attendance State
+    const [allSessions, setAllSessions] = useState([]);
+    const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
+    const [selectedSessionForAttendance, setSelectedSessionForAttendance] = useState(null);
+    const [attendanceList, setAttendanceList] = useState([]);
+    const [submittingAttendance, setSubmittingAttendance] = useState(false);
+
+    const formatFileSize = (bytes) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
+    const formatDate = (dateString) => {
+        const options = { year: 'numeric', month: 'short', day: 'numeric' };
+        return new Date(dateString).toLocaleDateString('en-US', options);
+    };
+
+    const getFileIcon = (fileName) => {
+        const ext = fileName.split('.').pop().toLowerCase();
+        if (['pdf'].includes(ext)) return { icon: 'picture_as_pdf', color: 'text-red-500', bg: 'bg-red-50' };
+        if (['mp4', 'mov', 'avi'].includes(ext)) return { icon: 'movie', color: 'text-blue-500', bg: 'bg-blue-50' };
+        if (['ppt', 'pptx'].includes(ext)) return { icon: 'present_to_all', color: 'text-amber-500', bg: 'bg-amber-50' };
+        if (['doc', 'docx'].includes(ext)) return { icon: 'description', color: 'text-blue-600', bg: 'bg-blue-50' };
+        if (['xls', 'xlsx'].includes(ext)) return { icon: 'table_chart', color: 'text-green-600', bg: 'bg-green-50' };
+        return { icon: 'insert_drive_file', color: 'text-gray-500', bg: 'bg-gray-50' };
+    };
+
+    useEffect(() => {
+        const fetchSessions = async () => {
+            try {
+                // Using Promise.allSettled to ensure that one failure (e.g. no sessions found) 
+                // doesn't block other data from loading (e.g. valid resources).
+                const [batchResult, sessionsResult, resourcesResult] = await Promise.allSettled([
+                    getBatch(courseId),
+                    getClassSessionsByBatch(courseId),
+                    getBatchResources(courseId)
+                ]);
+
+                // 1. Batch Details
+                if (batchResult.status === 'fulfilled') {
+                    setBatchDetails(batchResult.value);
+                } else {
+                    console.error("Failed to fetch batch:", batchResult.reason);
+                }
+
+                // 2. Class Sessions
+                if (sessionsResult.status === 'fulfilled') {
+                    const sessions = sessionsResult.value;
+
+                    if (sessions && sessions.length > 0) {
+                        setAllSessions(sessions);
+                        // Find next upcoming session
+                        const now = new Date();
+                        const upcoming = sessions.find(s => new Date(s.start_time) > now);
+                        setNextSession(upcoming || sessions[sessions.length - 1]); // Default to last if none upcoming
+                    }
+                } else {
+                    // It's common to have no sessions, so we just log clearly
+                    console.warn("Failed to fetch sessions (might be empty):", sessionsResult.reason);
+                }
+
+                // 3. Resources
+                if (resourcesResult.status === 'fulfilled') {
+                    const batchResources = resourcesResult.value;
+                    console.log("TeacherClassDetails: Raw batchResources taken from result:", batchResources);
+
+                    if (batchResources && Array.isArray(batchResources)) {
+                        const processedResources = batchResources
+                            .filter(r => !r.IsDirectory)
+                            .map(r => ({
+                                id: r.Guid,
+                                name: r.ObjectName,
+                                type: r.ObjectName.split('.').pop().toLowerCase(),
+                                size: r.Length,
+                                uploaded_at: r.LastChanged,
+                                download_url: `https://${r.StorageZoneName}.b-cdn.net${r.Path}${r.ObjectName}`,
+                                visible: true
+                            }));
+                        console.log("TeacherClassDetails: Processed resources:", processedResources);
+                        setResources(processedResources);
+                    } else {
+                        console.error("TeacherClassDetails: resources is not an array or is empty", batchResources);
+                    }
+                } else {
+                    console.error("Failed to fetch resources API:", resourcesResult.reason);
+                }
+
+            } catch (error) {
+                console.error("Critical error in fetchSessions:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchSessions();
+    }, [courseId]);
+
+    const handleOpenAttendance = async (session) => {
+        setSelectedSessionForAttendance(session);
+        setIsAttendanceModalOpen(true);
+        // Initialize attendance list with all students
+        // Default to 'present'
+        const students = batchDetails?.members || [];
+
+        try {
+            // Check if attendance already exists
+            const existingAttendance = await getSessionAttendance(session.id);
+
+            const initialList = students.map(student => {
+                const existingRecord = existingAttendance.find(r => r.student_id === student.user_id);
+                return {
+                    student_id: student.user_id,
+                    student_name: student.user_name,
+                    status: existingRecord ? existingRecord.status : 'present',
+                    remarks: existingRecord ? existingRecord.remarks : ''
+                };
+            });
+            setAttendanceList(initialList);
+        } catch (error) {
+            console.error("Failed to fetch existing attendance", error);
+            // Fallback to default
+            setAttendanceList(students.map(s => ({
+                student_id: s.user_id,
+                student_name: s.user_name,
+                status: 'present',
+                remarks: ''
+            })));
+        }
+    };
+
+    const updateAttendanceStatus = (index, newStatus) => {
+        const newList = [...attendanceList];
+        newList[index].status = newStatus;
+        setAttendanceList(newList);
+    };
+
+    const handleSubmitAttendance = async () => {
+        setSubmittingAttendance(true);
+        try {
+            // Ensure each record has session_id as required by backend schema
+            const formattedRecords = attendanceList.map(record => ({
+                student_id: record.student_id,
+                session_id: selectedSessionForAttendance.id,
+                status: record.status,
+                remarks: record.remarks
+            }));
+
+            await submitAttendance(selectedSessionForAttendance.id, formattedRecords);
+            alert("Attendance submitted successfully!");
+            setIsAttendanceModalOpen(false);
+        } catch (error) {
+            console.error("Failed to submit attendance", error);
+            alert("Failed to submit attendance.");
+        } finally {
+            setSubmittingAttendance(false);
+        }
+    };
+
+    if (loading) {
+        return <div className="h-full flex items-center justify-center">Loading...</div>;
+    }
 
     return (
         <div className="flex flex-col h-full overflow-hidden relative">
@@ -15,7 +184,7 @@ export default function TeacherClassDetails() {
                         <Link to="/teacher/classes" className="text-gray-400 hover:text-primary transition-colors">
                             <span className="material-symbols-outlined">arrow_back</span>
                         </Link>
-                        <h1 className="text-xl font-bold text-gray-900 font-serif">Advanced Algorithms</h1>
+                        <h1 className="text-xl font-bold text-gray-900 font-serif">{batchDetails?.course_name || batchDetails?.batch_name || "Class Details"}</h1>
                     </div>
                 </div>
                 <div className="flex items-center gap-6">
@@ -38,6 +207,7 @@ export default function TeacherClassDetails() {
             </header>
             <div className="flex-1 overflow-y-auto p-8 bg-background-light">
                 <div className="max-w-7xl mx-auto space-y-8">
+                    {/* Stats Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <div className="bg-white p-6 rounded-[16px] border border-gray-100 custom-shadow-soft shadow-card">
                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Class Attendance</p>
@@ -70,8 +240,56 @@ export default function TeacherClassDetails() {
                             </div>
                         </div>
                     </div>
+
+
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div className="lg:col-span-2 space-y-8">
+                            <section className="bg-white rounded-[16px] border border-gray-100 custom-shadow-soft overflow-hidden shadow-card">
+                                <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                                    <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-primary">calendar_month</span>
+                                        Class Sessions
+                                    </h2>
+                                </div>
+                                <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
+                                    {allSessions.length > 0 ? (
+                                        allSessions.map((session) => (
+                                            <div key={session.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900">
+                                                        {formatDate(session.start_time)}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        {new Date(session.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        {' - '}
+                                                        {new Date(session.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    {/* Show status chip if needed, e.g. based on time */}
+                                                    {new Date(session.start_time) < new Date() ? (
+                                                        <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-[10px] font-bold uppercase">Completed</span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase">Upcoming</span>
+                                                    )}
+                                                    <button
+                                                        onClick={() => handleOpenAttendance(session)}
+                                                        className="px-3 py-1.5 border border-primary text-primary hover:bg-primary hover:text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1"
+                                                    >
+                                                        <span className="material-symbols-outlined text-[16px]">edit_calendar</span>
+                                                        Attendance
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="p-8 text-center text-gray-400 text-sm">
+                                            No class sessions scheduled.
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+
                             <section className="bg-white rounded-[16px] border border-gray-100 custom-shadow-soft overflow-hidden shadow-card">
                                 <div className="p-6 border-b border-gray-50 flex items-center justify-between">
                                     <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -85,72 +303,42 @@ export default function TeacherClassDetails() {
                                     </button>
                                 </div>
                                 <div className="divide-y divide-gray-50">
-                                    <div className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center text-red-500">
-                                                <span className="material-symbols-outlined">picture_as_pdf</span>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-semibold text-gray-900">Lecture-04-Sorting.pdf</p>
-                                                <p className="text-xs text-gray-500">2.4 MB • Oct 12, 2023</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-6">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase">Visible</span>
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input defaultChecked className="sr-only peer" type="checkbox" />
-                                                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary">
+                                    {resources.length > 0 ? (
+                                        resources.map((resource) => {
+                                            const { icon, color, bg } = getFileIcon(resource.name);
+                                            return (
+                                                <div key={resource.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center ${color}`}>
+                                                            <span className="material-symbols-outlined">{icon}</span>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-gray-900">{resource.name}</p>
+                                                            <p className="text-xs text-gray-500">{formatFileSize(resource.size)} • {formatDate(resource.uploaded_at)}</p>
+                                                        </div>
                                                     </div>
-                                                </label>
-                                            </div>
-                                            <button className="text-gray-400 hover:text-primary"><span className="material-symbols-outlined">more_vert</span></button>
-                                        </div>
-                                    </div>
-                                    <div className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500">
-                                                <span className="material-symbols-outlined">movie</span>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-semibold text-gray-900">Big_O_Notation_Deep_Dive.mp4</p>
-                                                <p className="text-xs text-gray-500">156 MB • Oct 10, 2023</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-6">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase">Visible</span>
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input defaultChecked className="sr-only peer" type="checkbox" />
-                                                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary">
+                                                    <div className="flex items-center gap-6">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-bold text-gray-400 uppercase">Visible</span>
+                                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                                <input defaultChecked={resource.visible} className="sr-only peer" type="checkbox" />
+                                                                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary">
+                                                                </div>
+                                                            </label>
+                                                        </div>
+                                                        <a href={resource.download_url} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary" title="Download">
+                                                            <span className="material-symbols-outlined">download</span>
+                                                        </a>
+                                                        <button className="text-gray-400 hover:text-primary"><span className="material-symbols-outlined">more_vert</span></button>
                                                     </div>
-                                                </label>
-                                            </div>
-                                            <button className="text-gray-400 hover:text-primary"><span className="material-symbols-outlined">more_vert</span></button>
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="p-8 text-center text-gray-400 text-sm">
+                                            No resources found.
                                         </div>
-                                    </div>
-                                    <div className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-500">
-                                                <span className="material-symbols-outlined">present_to_all</span>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-semibold text-gray-900">Midterm_Review_Slides.pptx</p>
-                                                <p className="text-xs text-gray-500">8.1 MB • Oct 08, 2023</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-6">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase">Visible</span>
-                                                <label className="relative inline-flex items-center cursor-pointer">
-                                                    <input className="sr-only peer" type="checkbox" />
-                                                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary">
-                                                    </div>
-                                                </label>
-                                            </div>
-                                            <button className="text-gray-400 hover:text-primary"><span className="material-symbols-outlined">more_vert</span></button>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             </section>
                             <section className="bg-white rounded-[16px] border border-gray-100 custom-shadow-soft overflow-hidden shadow-card">
@@ -195,25 +383,37 @@ export default function TeacherClassDetails() {
                                 </div>
                             </section>
                         </div>
+
                         <div className="space-y-8">
                             <section className="bg-white rounded-[16px] border border-gray-100 custom-shadow-soft overflow-hidden shadow-card">
                                 <div className="p-6 bg-primary text-white">
                                     <div className="flex items-center justify-between mb-4">
                                         <span className="text-xs font-bold uppercase tracking-widest opacity-80">Next Session</span>
-                                        <span className="bg-white/20 px-2 py-1 rounded text-[10px] font-bold">14:00 PM</span>
+                                        <span className="bg-white/20 px-2 py-1 rounded text-[10px] font-bold">
+                                            {nextSession ? new Date(nextSession.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                                        </span>
                                     </div>
                                     <h3 className="text-xl font-bold mb-6">Live Virtual Classroom</h3>
-                                    <button className="w-full py-4 bg-white text-primary font-bold rounded-xl shadow-lg hover:bg-gray-50 transition-all flex items-center justify-center gap-2 mb-4">
-                                        <span className="material-symbols-outlined">video_call</span>
-                                        Start Live Class
-                                    </button>
-                                    <div className="flex items-center justify-between bg-white/10 p-3 rounded-lg">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] uppercase opacity-70">Meeting Link</span>
-                                            <span className="text-xs font-medium truncate max-w-[150px]">zoom.us/j/88273...</span>
+                                    {nextSession ? (
+                                        <>
+                                            <a href={nextSession.meeting_link || "#"} target="_blank" rel="noopener noreferrer" className="w-full py-4 bg-white text-primary font-bold rounded-xl shadow-lg hover:bg-gray-50 transition-all flex items-center justify-center gap-2 mb-4">
+                                                <span className="material-symbols-outlined">video_call</span>
+                                                Start Live Class
+                                            </a>
+                                            <div className="flex items-center justify-between bg-white/10 p-3 rounded-lg">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] uppercase opacity-70">Meeting Link</span>
+                                                    <span className="text-xs font-medium truncate max-w-[150px]">{nextSession.meeting_link || "No link available"}</span>
+                                                </div>
+                                                <Link to={`/teacher/classes/${courseId}/meeting`} className="text-xs font-bold underline hover:opacity-80">Manage Link</Link>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="text-center py-4">
+                                            <p className="opacity-80 text-sm">No upcoming sessions</p>
+                                            <Link to={`/teacher/classes/${courseId}/meeting`} className="mt-2 inline-block px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-bold transition-all">Schedule Class</Link>
                                         </div>
-                                        <Link to={`/teacher/classes/${courseId}/meeting`} className="text-xs font-bold underline hover:opacity-80">Manage Link</Link>
-                                    </div>
+                                    )}
                                 </div>
                             </section>
                             <section className="bg-white rounded-[16px] border border-gray-100 custom-shadow-soft overflow-hidden shadow-card">
@@ -258,65 +458,129 @@ export default function TeacherClassDetails() {
                             </section>
                         </div>
                     </div>
+
                     <section className="bg-white rounded-[16px] border border-gray-100 custom-shadow-soft overflow-hidden mb-10 shadow-card">
                         <div className="p-6 border-b border-gray-50 flex items-center justify-between">
                             <h2 className="text-lg font-bold text-gray-900 font-serif">Student Performance Roster</h2>
-                            <div className="flex gap-4">
-                                <span className="flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-1 rounded-full"><span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Top Performing</span>
-                                <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full"><span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Needs Attention</span>
-                            </div>
+                            <span className="text-xs text-gray-500">{batchDetails?.members?.length || 0} Students</span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 divide-x divide-y md:divide-y-0 divide-gray-50">
-                            <div className="p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <img alt="" className="w-10 h-10 rounded-full object-cover"
-                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuCW-tFR3TQfy84jtywNT_O0kGwVJB9mvrNXhOyJ_YwgiYWqeHTH5-AYLF-fFwqRjRyLnICXcl_2O3VvSQasZ9x1Gcb7yLSnXaOAG7PUrncwB8G-ycxLDTzF40zpoQL4He5VYCuethYGY8PIpV0M9a5U1Wc2ap7x0suHUSyF61jPmZPw9LbuIIa71MKeKD9ibEuqjSEZ5P3iTobPlU8pkjzsaR75JIOPsQ8Neh2P9r0dMCEJeFNnozwtPoGscDvOiDu3LenQvCfEXg8" />
-                                    <div>
-                                        <p className="text-sm font-bold text-gray-900">Marcus Chen</p>
-                                        <p className="text-[10px] font-bold text-green-600 uppercase">A+ (98.2%)</p>
+                            {batchDetails?.members?.map((member) => (
+                                <div key={member.user_id} className="p-6">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold overflow-hidden">
+                                            {member.user_name.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-900">{member.user_name}</p>
+                                            <p className="text-[10px] text-gray-500 truncate max-w-[120px]">{member.user_email}</p>
+                                        </div>
                                     </div>
+                                    <p className="text-xs text-gray-500">Student</p>
                                 </div>
-                                <p className="text-xs text-gray-500">Exceptional participation in forums and perfect scores on all quizzes.</p>
-                            </div>
-                            <div className="p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <img alt="" className="w-10 h-10 rounded-full object-cover"
-                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuCW-tFR3TQfy84jtywNT_O0kGwVJB9mvrNXhOyJ_YwgiYWqeHTH5-AYLF-fFwqRjRyLnICXcl_2O3VvSQasZ9x1Gcb7yLSnXaOAG7PUrncwB8G-ycxLDTzF40zpoQL4He5VYCuethYGY8PIpV0M9a5U1Wc2ap7x0suHUSyF61jPmZPw9LbuIIa71MKeKD9ibEuqjSEZ5P3iTobPlU8pkjzsaR75JIOPsQ8Neh2P9r0dMCEJeFNnozwtPoGscDvOiDu3LenQvCfEXg8" />
-                                    <div>
-                                        <p className="text-sm font-bold text-gray-900">Sarah Jenkins</p>
-                                        <p className="text-[10px] font-bold text-green-600 uppercase">A (94.5%)</p>
-                                    </div>
+                            ))}
+                            {(!batchDetails?.members || batchDetails.members.length === 0) && (
+                                <div className="p-6 col-span-full text-center text-gray-500 text-sm">
+                                    No students enrolled yet.
                                 </div>
-                                <p className="text-xs text-gray-500">Consistently high-quality lab submissions. Strong analytical skills.</p>
-                            </div>
-                            <div className="p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-                                        <span className="material-symbols-outlined">person</span>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-bold text-gray-900">Leo Thompson</p>
-                                        <p className="text-[10px] font-bold text-amber-600 uppercase">C- (71.2%)</p>
-                                    </div>
-                                </div>
-                                <p className="text-xs text-gray-500">Missed last two live sessions. Engagement with materials has dropped.</p>
-                            </div>
-                            <div className="p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-                                        <span className="material-symbols-outlined">person</span>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-bold text-gray-900">Jessica Wu</p>
-                                        <p className="text-[10px] font-bold text-amber-600 uppercase">D (64.8%)</p>
-                                    </div>
-                                </div>
-                                <p className="text-xs text-gray-500">Struggling with Dynamic Programming concepts. Recommended for tutoring.</p>
-                            </div>
+                            )}
                         </div>
                     </section>
                 </div>
             </div>
-        </div>
+            {/* Attendance Modal */}
+            {isAttendanceModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 border border-white/20 max-h-[80vh]">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <h3 className="font-bold text-xl text-gray-900">Mark Attendance</h3>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    {selectedSessionForAttendance && formatDate(selectedSessionForAttendance.start_time)} •
+                                    {selectedSessionForAttendance && new Date(selectedSessionForAttendance.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsAttendanceModalOpen(false)}
+                                className="text-gray-400 hover:text-gray-600 rounded-full p-2 hover:bg-gray-100 transition-colors"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto flex-1">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="bg-gray-50/50">
+                                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Student</th>
+                                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Status</th>
+                                        <th className="px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {attendanceList.map((record, index) => (
+                                        <tr key={record.student_id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-4 py-3">
+                                                <span className="text-sm font-bold text-gray-900 block">{record.student_name}</span>
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <div className="relative inline-block w-32">
+                                                    <select
+                                                        value={record.status}
+                                                        onChange={(e) => updateAttendanceStatus(index, e.target.value)}
+                                                        className={`appearance-none w-full px-4 py-1.5 pr-8 rounded-full text-xs font-bold capitalize outline-none cursor-pointer transition-all border ${record.status === 'present' ? 'bg-green-100 text-green-700 border-green-200' :
+                                                            record.status === 'absent' ? 'bg-red-100 text-red-700 border-red-200' :
+                                                                record.status === 'late' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                                                    'bg-blue-100 text-blue-700 border-blue-200'
+                                                            }`}
+                                                    >
+                                                        <option value="present">Present</option>
+                                                        <option value="absent">Absent</option>
+                                                        <option value="late">Late</option>
+                                                        <option value="excused">Excused</option>
+                                                    </select>
+                                                    <div className={`pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 ${record.status === 'present' ? 'text-green-700' :
+                                                        record.status === 'absent' ? 'text-red-700' :
+                                                            record.status === 'late' ? 'text-orange-700' :
+                                                                'text-blue-700'
+                                                        }`}>
+                                                        <span className="material-symbols-outlined text-[16px]">expand_more</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <input
+                                                    type="text"
+                                                    value={record.remarks}
+                                                    onChange={(e) => {
+                                                        const newList = [...attendanceList];
+                                                        newList[index].remarks = e.target.value;
+                                                        setAttendanceList(newList);
+                                                    }}
+                                                    placeholder="Optional remarks..."
+                                                    className="w-full bg-transparent border-b border-transparent focus:border-primary text-sm focus:outline-none transition-colors"
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsAttendanceModalOpen(false)}
+                                className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-colors">
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubmitAttendance}
+                                disabled={submittingAttendance}
+                                className="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-indigo-700 shadow-soft-purple transition-all flex items-center gap-2">
+                                {submittingAttendance ? 'Saving...' : 'Save Attendance'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div >
     );
 }

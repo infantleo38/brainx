@@ -8,3 +8,4 @@ alembic/
 alembic.ini
 .cpython-310.pyc
 .venv
+/venv/

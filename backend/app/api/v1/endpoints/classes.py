@@ -10,6 +10,7 @@ from app.schemas.batch import Batch, BatchCreate, BatchUpdate, BatchMember, Batc
 from app.schemas.chat import ChatCreate, ChatMemberCreate, MessageCreate
 from app.models.chat import ChatTypeEnum, ChatMemberRoleEnum
 from app.crud.crud_chat import chat as crud_chat, message as crud_message
+from app.services.bunny_service import bunny_service
 
 router = APIRouter()
 
@@ -136,6 +137,7 @@ async def read_batch(
         status=batch.status,
         created_at=batch.created_at,
         teacher_name=batch.teacher.full_name if batch.teacher else None,
+        course_name=batch.course.title if batch.course else None,
         members=members_details
     )
     return batch_detail
@@ -217,3 +219,31 @@ async def read_batch_members(
         
     members = await crud_batch_member.get_by_batch(db, batch_id=batch_id, skip=skip, limit=limit)
     return members
+
+@router.get("/{batch_id}/resources", response_model=List[Any])
+async def read_batch_resources(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    batch_id: int,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Get resources for a batch (from its group chat).
+    """
+    batch = await crud_batch.get(db=db, id=batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    # Resolve Chat Group ID from Batch ID
+    chat = await crud_chat.get_by_batch(db, batch_id=batch_id)
+    
+    if not chat:
+        # If no chat exists yet (e.g. auto-creation failed), returns empty list instead of 404 for resources
+        return []
+        
+    # Fetch resources from Bunny.net
+    # Path: resources/groups/{chat_id}/
+    path = f"resources/groups/{chat.id}"
+    files = await bunny_service.list_files(path)
+    
+    return files

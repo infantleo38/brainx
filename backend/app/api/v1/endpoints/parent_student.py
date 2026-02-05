@@ -21,8 +21,10 @@ async def link_parent_student(
     """
     Link a parent to a student.
     """
-    # Only admin, coordinator, or the parent themselves can create a link
-    if current_user.role not in ["admin", "coordinator"] and str(current_user.id) != str(link_in.parent_id):
+    # Only admin, coordinator, teacher, or the parent themselves can create a link
+    # Ensure safe string comparison for role
+    user_role = str(current_user.role.value if hasattr(current_user.role, 'value') else current_user.role)
+    if user_role not in ["admin", "coordinator", "teacher"] and str(current_user.id) != str(link_in.parent_id):
         raise HTTPException(status_code=403, detail="Not authorized to create this relationship")
 
     # Check if link already exists (simple check, or rely on DB constraint if added)
@@ -39,7 +41,8 @@ async def get_students(
     """
     Get all students linked to a parent.
     """
-    if current_user.role not in ["admin", "coordinator"] and str(current_user.id) != str(parent_id):
+    user_role = str(current_user.role.value if hasattr(current_user.role, 'value') else current_user.role)
+    if user_role not in ["admin", "coordinator", "teacher"] and str(current_user.id) != str(parent_id):
         raise HTTPException(status_code=403, detail="Not authorized to view these students")
         
     students = await parent_student.get_students_by_parent(db=db, parent_id=parent_id)
@@ -55,7 +58,8 @@ async def get_parents(
     Get all parents linked to a student.
     """
     # Student can view their parents, or admin/teacher/coordinator
-    if current_user.role not in ["admin", "coordinator", "teacher"] and str(current_user.id) != str(student_id):
+    user_role = str(current_user.role.value if hasattr(current_user.role, 'value') else current_user.role)
+    if user_role not in ["admin", "coordinator", "teacher"] and str(current_user.id) != str(student_id):
         raise HTTPException(status_code=403, detail="Not authorized to view these parents")
 
     parents = await parent_student.get_parents_by_student(db=db, student_id=student_id)
@@ -72,7 +76,8 @@ async def unlink_parent_student(
     """
     Unlink a parent and student.
     """
-    if current_user.role not in ["admin", "coordinator"]:
+    user_role = str(current_user.role.value if hasattr(current_user.role, 'value') else current_user.role)
+    if user_role not in ["admin", "coordinator", "teacher"]:
         raise HTTPException(status_code=403, detail="Not authorized to delete this relationship")
         
     link = await parent_student.delete(db=db, parent_id=parent_id, student_id=student_id)

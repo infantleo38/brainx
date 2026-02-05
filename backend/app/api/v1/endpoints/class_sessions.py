@@ -10,6 +10,8 @@ from app.models.user import User
 
 router = APIRouter()
 
+from datetime import datetime, timezone
+
 @router.post("/", response_model=schemas.ClassSession)
 async def create_session(
     *,
@@ -24,7 +26,36 @@ async def create_session(
     if current_user.role not in ["admin", "coordinator", "teacher"]:
         raise HTTPException(status_code=403, detail="Not authorized to create sessions")
         
-    session = await class_session.create(db=db, obj_in=session_in)
+    # Persist Logic: Upsert based on batch_id (Update existing future session or create new)
+    # Check if there is an existing future session for this batch
+    existing_sessions = await class_session.get_by_batch(db, batch_id=session_in.batch_id)
+    
+    # Filter for future sessions to update the relevant one
+    now = datetime.now(timezone.utc)
+    # Ensure start_time is comparable (aware/naive). DB usually returns aware if configured, or naive. 
+    # Assuming start_time in DB is standard.
+    
+    target_session = None
+    if existing_sessions:
+        # Sort by start_time just in case
+        existing_sessions.sort(key=lambda x: x.start_time)
+        
+        # Find first session in the future (or very recent past?)
+        # We'll stick to strictly future for "Next Session" update logic
+        future_sessions = [s for s in existing_sessions if s.start_time > now]
+        
+        if future_sessions:
+            target_session = future_sessions[0]
+
+    if target_session:
+        # Update existing
+        print(f"DEBUG: Updating existing session {target_session.id} for batch {session_in.batch_id}")
+        session = await class_session.update(db=db, db_obj=target_session, obj_in=session_in)
+    else:
+        # Create new
+        print(f"DEBUG: Creating new session for batch {session_in.batch_id}")
+        session = await class_session.create(db=db, obj_in=session_in)
+        
     return session
 
 @router.get("/", response_model=List[schemas.ClassSession])
@@ -54,6 +85,20 @@ async def read_sessions(
         # Ideally I should update CRUD to have get_multi, but for specific requirements usually filters are key.
         return [] 
         
+    return sessions
+
+@router.get("/by-batch/{batch_id}", response_model=List[schemas.ClassSession])
+async def read_sessions_by_batch(
+    batch_id: int,
+    db: AsyncSession = Depends(deps.get_db),
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Retrieve class sessions for a specific batch.
+    """
+    sessions = await class_session.get_by_batch(db, batch_id=batch_id, skip=skip, limit=limit)
     return sessions
 
 @router.get("/{id}", response_model=schemas.ClassSession)

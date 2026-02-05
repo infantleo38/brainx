@@ -43,6 +43,24 @@ async def read_chats(
     Retrieve chats for current user.
     """
     chats = await crud_chat.get_by_user(db=db, user_id=current_user.id, skip=skip, limit=limit)
+    
+    # Privacy: If current user is student, remove other students from members list in response
+    # They should only see Teachers/Admins in the group members list
+    if current_user.role == "student":
+        for chat in chats:
+            # Filter members: Keep if member is ME or member is NOT student
+            # Actually user said "you have to return members exclude students"
+            # But we probably want to keep the user themselves in the list if the UI depends on it?
+            # User request: "IF THIS API IS HIT BY STUDENT YOU SHOULD NOT RETURN STDENT DETAILS HERE.YOU HAVE TO RETURN MEMBERS EXCLUDE STUDENTS"
+            # Strict interpretation: Remove ALL students. 
+            # Practical interpretation: Remove OTHER students. Keep myself? 
+            # Let's keep non-students AND the current user.
+            
+            chat.members = [
+                m for m in chat.members 
+                if m.role != "student" or m.user_id == current_user.id
+            ]
+            
     return chats
 
 @router.get("/{chat_id}", response_model=schemas.Chat)

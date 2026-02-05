@@ -414,6 +414,18 @@ export const createClassSession = async (sessionData, token = null) => {
     }, token);
 };
 
+export const getClassSessionsByBatch = async (batchId, skip = 0, limit = 100, token = null) => {
+    return fetchWithAuth(`/class-sessions/by-batch/${batchId}?skip=${skip}&limit=${limit}`, {}, token);
+};
+
+export const getBatchResources = async (batchId) => {
+    const response = await api.get(`/classes/${batchId}/resources`);
+    return response; // api.get already returns json body or response.data depending on implementation, but fetchWithAuth returns response.json()
+    // Wait, let's double check api.get implementation above.
+    // api.get calls fetchWithAuth. fetchWithAuth returns response.json().
+    // So 'response' here IS the data (the array).
+};
+
 const api = {
     get: (url, options = {}, token = null) => fetchWithAuth(url, { ...options, method: 'GET' }, token),
     post: (url, data, options = {}, token = null) => fetchWithAuth(url, {
@@ -429,6 +441,46 @@ const api = {
         body: JSON.stringify(data)
     }, token),
     delete: (url, options = {}, token = null) => fetchWithAuth(url, { ...options, method: 'DELETE' }, token),
+};
+
+export const submitAttendance = async (session_id, records, token = null) => {
+    return fetchWithAuth('/attendance/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id, records }),
+    }, token);
+};
+
+export const getSessionAttendance = async (session_id, token = null) => {
+    return fetchWithAuth(`/attendance/session/${session_id}`, {}, token);
+};
+
+export const getStudentAttendance = async (student_id, token = null) => {
+    return fetchWithAuth(`/attendance/student/${student_id}`, {}, token);
+};
+
+export const linkParentStudent = async (data, token = null) => {
+    return fetchWithAuth('/parent-student/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    }, token);
+};
+
+export const unlinkParentStudent = async (parentId, studentId, token = null) => {
+    return fetchWithAuth(`/parent-student/?parent_id=${parentId}&student_id=${studentId}`, {
+        method: 'DELETE',
+    }, token);
+};
+
+export const getStudentsByParent = async (parentId, token = null) => {
+    return fetchWithAuth(`/parent-student/students/${parentId}`, {}, token);
+};
+
+export const getParentsByStudent = async (studentId, token = null) => {
+    return fetchWithAuth(`/parent-student/parents/${studentId}`, {}, token);
 };
 
 export default api;

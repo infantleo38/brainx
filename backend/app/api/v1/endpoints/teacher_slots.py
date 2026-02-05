@@ -7,7 +7,7 @@ from datetime import date
 from app.api import deps
 from app.schemas import teacher_slots as schemas
 from app.crud.crud_teacher_slots import teacher_slot
-from app.models.user import User
+from app.models.user import User, UserRole
 
 router = APIRouter()
 
@@ -21,7 +21,7 @@ async def create_slot(
     """
     Create a new teacher time slot.
     """
-    if str(current_user.id) != str(slot_in.teacher_id) and current_user.role != "admin":
+    if str(current_user.id) != str(slot_in.teacher_id) and current_user.role != UserRole.admin:
         raise HTTPException(status_code=403, detail="Not authorized to create slots for other users")
         
     slot = await teacher_slot.create(db=db, obj_in=slot_in)
@@ -39,7 +39,7 @@ async def create_bulk_slots(
     Example: start_time=08:00, end_time=12:00 creates:
     08:00-09:00, 09:00-10:00, 10:00-11:00, 11:00-12:00
     """
-    if str(current_user.id) != str(slot_in.teacher_id) and current_user.role != "admin":
+    if str(current_user.id) != str(slot_in.teacher_id) and current_user.role != UserRole.admin:
         raise HTTPException(status_code=403, detail="Not authorized to create slots for other users")
         
     slots = await teacher_slot.bulk_create(db=db, obj_in=slot_in)
@@ -75,7 +75,7 @@ async def update_slot(
         raise HTTPException(status_code=404, detail="Slot not found")
         
     # Permission check: Teacher can update their own slots, Students can 'book' (update booked_by/status)
-    if str(current_user.id) != str(slot.teacher_id) and current_user.role != "admin":
+    if str(current_user.id) != str(slot.teacher_id) and current_user.role != UserRole.admin:
          # Check if it's a booking attempt
          if slot_in.status == "booked" and slot_in.booked_by == current_user.id:
              # Allow student to book
@@ -101,7 +101,7 @@ async def delete_slot(
     if not slot:
         raise HTTPException(status_code=404, detail="Slot not found")
         
-    if str(current_user.id) != str(slot.teacher_id) and current_user.role != "admin":
+    if str(current_user.id) != str(slot.teacher_id) and current_user.role != UserRole.admin:
         raise HTTPException(status_code=403, detail="Not authorized to delete this slot")
         
     slot = await teacher_slot.delete(db=db, id=id)

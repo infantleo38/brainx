@@ -587,52 +587,49 @@ export default function Chat() {
                                     </div>
 
                                     <div className="space-y-4">
-                                        {activeChat.members && activeChat.members.map(member => (
-                                            <div
-                                                key={member.id}
-                                                onClick={() => handleMemberClick(member)}
-                                                className="flex items-center gap-3 cursor-pointer group hover:bg-gray-50 p-2 rounded-lg -mx-2 transition-colors"
-                                            >
-                                                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-primary font-bold overflow-hidden relative">
-                                                    {member.user?.profile_image ? (
-                                                        <img src={member.user.profile_image} alt="" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        (member.user?.full_name || member.user_name || '?').charAt(0)
-                                                    )}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex justify-between items-center">
-                                                        <h4 className="text-sm font-medium text-gray-900 truncate">
-                                                            {member.user?.full_name || member.user_name || 'Unknown User'}
-                                                        </h4>
-                                                        {member.role === 'admin' && (
-                                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">
-                                                                Group Admin
-                                                            </span>
+                                        {activeChat.members && activeChat.members.map(member => {
+                                            const isCurrentUserStudent = currentUser?.role === 'student';
+                                            const isMemberStudent = member.role === 'student';
+                                            const showContact = !(isCurrentUserStudent && isMemberStudent);
+                                            const canChat = !isCurrentUserStudent || !isMemberStudent;
+
+                                            return (
+                                                <div
+                                                    key={member.id}
+                                                    onClick={() => canChat && handleMemberClick(member)}
+                                                    className={`flex items-center gap-3 p-2 rounded-lg -mx-2 transition-colors ${canChat ? 'cursor-pointer hover:bg-gray-50 group' : 'cursor-default opacity-90'}`}
+                                                >
+                                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-primary font-bold overflow-hidden relative">
+                                                        {member.user?.profile_image ? (
+                                                            <img src={member.user.profile_image} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            (member.user?.full_name || member.user_name || '?').charAt(0)
                                                         )}
                                                     </div>
-                                                    {/* Contact Info Privacy Logic */}
-                                                    {(() => {
-                                                        const isCurrentUserStudent = currentUser?.role === 'student';
-                                                        const isMemberStudent = member.role === 'student';
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex justify-between items-center">
+                                                            <h4 className="text-sm font-medium text-gray-900 truncate">
+                                                                {member.user?.full_name || member.user_name || 'Unknown User'}
+                                                            </h4>
+                                                            {member.role === 'admin' && (
+                                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">
+                                                                    Group Admin
+                                                                </span>
+                                                            )}
+                                                        </div>
 
-                                                        // Hide contact if BOTH current user AND member are students
-                                                        const showContact = !(isCurrentUserStudent && isMemberStudent);
-
-                                                        if (!showContact) return null;
-
-                                                        return (
+                                                        {showContact && (
                                                             <div className="text-xs text-gray-500 truncate flex flex-col">
                                                                 <span>{member.user?.email || member.user_email || ''}</span>
                                                                 {member.user?.phone && (
                                                                     <span>{member.user.phone}</span>
                                                                 )}
                                                             </div>
-                                                        );
-                                                    })()}
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
 

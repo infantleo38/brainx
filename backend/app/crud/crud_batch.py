@@ -15,7 +15,8 @@ class CRUDBatch:
             select(Batch)
             .options(
                 selectinload(Batch.members).selectinload(BatchMember.user),
-                selectinload(Batch.teacher)
+                selectinload(Batch.teacher),
+                selectinload(Batch.course)
             )
             .filter(Batch.id == id)
         )

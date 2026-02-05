@@ -1,20 +1,37 @@
 from typing import List, Optional, Union, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from uuid import UUID
 from datetime import datetime
 
 from app.models.class_session import ClassSession
+from app.models.course import Course
 from app.schemas.class_session import ClassSessionCreate, ClassSessionUpdate
 
 class CRUDClassSession:
     async def get(self, db: AsyncSession, id: int) -> Optional[ClassSession]:
-        result = await db.execute(select(ClassSession).filter(ClassSession.id == id))
+        result = await db.execute(
+            select(ClassSession)
+            .options(
+                selectinload(ClassSession.course).options(
+                    selectinload(Course.badge),
+                    selectinload(Course.provider)
+                )
+            )
+            .filter(ClassSession.id == id)
+        )
         return result.scalars().first()
 
     async def get_by_batch(self, db: AsyncSession, batch_id: int, skip: int = 0, limit: int = 100) -> List[ClassSession]:
         result = await db.execute(
             select(ClassSession)
+            .options(
+                selectinload(ClassSession.course).options(
+                    selectinload(Course.badge),
+                    selectinload(Course.provider)
+                )
+            )
             .filter(ClassSession.batch_id == batch_id)
             .order_by(ClassSession.start_time)
             .offset(skip)
@@ -25,6 +42,12 @@ class CRUDClassSession:
     async def get_by_teacher(self, db: AsyncSession, teacher_id: UUID, skip: int = 0, limit: int = 100) -> List[ClassSession]:
         result = await db.execute(
             select(ClassSession)
+            .options(
+                selectinload(ClassSession.course).options(
+                    selectinload(Course.badge),
+                    selectinload(Course.provider)
+                )
+            )
             .filter(ClassSession.teacher_id == teacher_id)
             .order_by(ClassSession.start_time)
             .offset(skip)

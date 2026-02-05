@@ -40,10 +40,10 @@ export default function Sidebar({ active }) {
         try {
             // 1. Upload image
             const publicUrl = await uploadProfileImage(file);
-            
+
             // 2. Update user profile with new image URL
             const updatedUser = await updateUserProfile({ profile_image: publicUrl });
-            
+
             // 3. Update local state
             setUser(updatedUser);
         } catch (error) {
@@ -64,11 +64,11 @@ export default function Sidebar({ active }) {
         { key: 'chat', label: 'Chat', icon: 'chat_bubble', link: '/chat', iconClass: 'fill-1', module: 'Messages' },
         { key: 'dashboard', label: 'Dashboard', icon: 'dashboard', link: '/dashboard', iconClass: 'fill-1', module: 'Dashboard' },
         { key: 'reports', label: 'Reports', icon: 'group', link: '#', module: 'Reports' },
-        { key: 'parents', label: 'Parents', icon: 'face_3', link: '#', module: 'Student Records' },
+        { key: 'parents', label: 'Parents', icon: 'face_3', link: '/parents', module: 'Student Records' },
         { key: 'teachers', label: 'Teachers', icon: 'work', link: '/teachers', module: 'User Management' },
         { key: 'courses', label: 'Courses', icon: 'book_2', link: '/courses', module: 'Courses' },
         { key: 'assessment', label: 'Assessment', icon: 'assignment', link: '/assessment' },
-        { key: 'management', label: 'Management', icon: 'settings', link: '#', module: 'User Management' },
+        { key: 'management', label: 'User Management', icon: 'manage_accounts', link: '/users', module: 'User Management' },
         { key: 'roles', label: 'Roles & Access', icon: 'verified_user', link: '/roles', module: 'Global Settings' }
     ];
 
@@ -100,21 +100,21 @@ export default function Sidebar({ active }) {
             <div className="p-6 pb-2 border-b border-gray-50">
                 <div className="flex flex-col items-center text-center">
                     <div className="relative mb-3 group cursor-pointer" onClick={handleImageClick}>
-                            <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            onChange={handleImageChange} 
-                            accept="image/*" 
-                            className="hidden" 
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImageChange}
+                            accept="image/*"
+                            className="hidden"
                         />
                         <div className={`w-20 h-20 rounded-full p-1 border-2 border-primary/20 transition-opacity ${isUploading ? 'opacity-50' : ''}`}>
-                            <img 
-                                alt="User Avatar" 
-                                className="w-full h-full rounded-full object-cover" 
-                                src={user?.profile_image || `https://ui-avatars.com/api/?name=${user?.full_name || 'User'}&background=random`} 
+                            <img
+                                alt="User Avatar"
+                                className="w-full h-full rounded-full object-cover"
+                                src={user?.profile_image || `https://ui-avatars.com/api/?name=${user?.full_name || 'User'}&background=random`}
                             />
                         </div>
-                        
+
                         {/* Loading Spinner */}
                         {isUploading && (
                             <div className="absolute inset-0 flex items-center justify-center">
@@ -122,7 +122,7 @@ export default function Sidebar({ active }) {
                             </div>
                         )}
 
-                            {/* Edit Overlay */}
+                        {/* Edit Overlay */}
                         <div className="absolute inset-0 bg-black/30 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <span className="material-symbols-outlined text-white text-xl">edit</span>
                         </div>
@@ -180,14 +180,14 @@ export default function Sidebar({ active }) {
                 {/* Teacher specific links */}
                 {(user?.role === 'teacher' || user?.role === 'instructor') && (
                     <>
-                     <Link to="/teacher/dashboard" className={`sidebar-item flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all group ${isActive('/teacher/dashboard') ? 'bg-primary-light text-primary border-r-[3px] border-primary' : 'text-gray-600 hover:bg-gray-50 hover:text-primary'}`}>
-                        <span className={`material-symbols-outlined text-xl transition-colors ${isActive('/teacher/dashboard') ? 'text-primary font-variation-settings-fill' : 'text-gray-500 group-hover:text-primary'}`} style={isActive('/teacher/dashboard') ? { fontVariationSettings: "'FILL' 1" } : {}}>dashboard</span>
-                        Instructor Dashboard
-                    </Link>
-                     <Link to="/teacher/classes" className={`sidebar-item flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all group ${isActive('/teacher/classes') ? 'bg-primary-light text-primary border-r-[3px] border-primary' : 'text-gray-600 hover:bg-gray-50 hover:text-primary'}`}>
-                        <span className={`material-symbols-outlined text-xl transition-colors ${isActive('/teacher/classes') ? 'text-primary font-variation-settings-fill' : 'text-gray-500 group-hover:text-primary'}`} style={isActive('/teacher/classes') ? { fontVariationSettings: "'FILL' 1" } : {}}>class</span>
-                        My Classes
-                    </Link>
+                        <Link to="/teacher/dashboard" className={`sidebar-item flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all group ${isActive('/teacher/dashboard') ? 'bg-primary-light text-primary border-r-[3px] border-primary' : 'text-gray-600 hover:bg-gray-50 hover:text-primary'}`}>
+                            <span className={`material-symbols-outlined text-xl transition-colors ${isActive('/teacher/dashboard') ? 'text-primary font-variation-settings-fill' : 'text-gray-500 group-hover:text-primary'}`} style={isActive('/teacher/dashboard') ? { fontVariationSettings: "'FILL' 1" } : {}}>dashboard</span>
+                            Instructor Dashboard
+                        </Link>
+                        <Link to="/teacher/classes" className={`sidebar-item flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all group ${isActive('/teacher/classes') ? 'bg-primary-light text-primary border-r-[3px] border-primary' : 'text-gray-600 hover:bg-gray-50 hover:text-primary'}`}>
+                            <span className={`material-symbols-outlined text-xl transition-colors ${isActive('/teacher/classes') ? 'text-primary font-variation-settings-fill' : 'text-gray-500 group-hover:text-primary'}`} style={isActive('/teacher/classes') ? { fontVariationSettings: "'FILL' 1" } : {}}>class</span>
+                            My Classes
+                        </Link>
                     </>
                 )}
 
@@ -196,11 +196,11 @@ export default function Sidebar({ active }) {
                     // Check logic for 'active' state for generic items
                     // We check if current path matches item.link
                     const isItemActive = isActive(item.link) || active === item.key;
-                    
+
                     return (
-                        <Link 
+                        <Link
                             key={item.key}
-                            to={item.link} 
+                            to={item.link}
                             className={`sidebar-item flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all group ${isItemActive ? 'bg-primary-light text-primary border-r-[3px] border-primary' : 'text-gray-600 hover:bg-gray-50 hover:text-primary'}`}
                         >
                             <span className={`material-symbols-outlined text-xl transition-colors ${isItemActive ? 'text-primary font-variation-settings-fill' : 'text-gray-500 group-hover:text-primary'}`} style={isItemActive ? { fontVariationSettings: "'FILL' 1" } : {}}>

@@ -30,6 +30,8 @@ import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import TeacherClasses from './pages/teacher/TeacherClasses';
 import MeetingManagement from './pages/teacher/MeetingManagement';
 import TeacherClassDetails from './pages/teacher/TeacherClassDetails';
+import Users from './pages/Users';
+import Parents from './pages/Parents';
 
 function App() {
   return (
@@ -42,11 +44,9 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
-
           {/* Assessment Attempt - No Sidebar (Fullscreen Mode) */}
           <Route path="/student/assignments/:assignmentId/attempt" element={<AssessmentAttempt />} />
           <Route path="/student/submission/:assessmentId" element={<SubmissionView />} />
-
           {/* Protected Routes with Layout */}
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
@@ -69,6 +69,8 @@ function App() {
             <Route path="/courses/create" element={<CreateCourse />} />
             <Route path="/teachers" element={<Teachers />} />
             <Route path="/classes/create" element={<CreateClass />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/parents" element={<Parents />} />
           </Route>
         </Routes>
       </div>
