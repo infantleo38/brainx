@@ -15,35 +15,19 @@ export default function CreateAssessment() {
 
     // Settings
     const [settings, setSettings] = useState({
-        title: 'Midterm: Advanced Algorithms',
-        timeLimitHrs: 1,
+        title: '',
+        timeLimitHrs: 0,
         timeLimitMins: 30,
         passingScore: 70,
         shuffleQuestions: false,
         showResults: true,
         dueDate: '',
-        totalMarks: 100, // Calculated dynamically? Or set?
+        totalMarks: 100, // Calculated dynamically from questions
         audience: 'Entire Class'
     });
 
-    // Questions
-    const [questions, setQuestions] = useState([
-        {
-            id: 1,
-            text: 'Which of the following sorting algorithms has the best average-case time complexity?',
-            type: 'Multiple Choice',
-            options: ['Bubble Sort', 'Merge Sort', 'Selection Sort', 'Insertion Sort'],
-            correctOption: 1, // Index
-            points: 5
-        },
-        {
-            id: 2,
-            text: 'What is the space complexity of...',
-            type: 'Multiple Choice',
-            options: [],
-            points: 5
-        }
-    ]);
+    // Questions - Start with empty array, users will add their own questions
+    const [questions, setQuestions] = useState([]);
 
     // Fetch Courses on Mount
     useEffect(() => {
@@ -128,12 +112,57 @@ export default function CreateAssessment() {
     const handlePublish = async () => {
         setLoading(true);
         try {
-            // Mock publish
-            await new Promise(r => setTimeout(r, 1000));
-            alert('Assessment Published!');
+            // Validate required fields
+            if (!settings.title || !selectedCourse || !selectedBatch) {
+                alert('Please fill in all required fields: Title, Course, and Batch');
+                setLoading(false);
+                return;
+            }
+
+            if (questions.length === 0) {
+                alert('Please add at least one question');
+                setLoading(false);
+                return;
+            }
+
+            // Calculate total marks from questions
+            const totalMarks = questions.reduce((sum, q) => sum + (parseInt(q.points) || 0), 0);
+
+            // Prepare quiz settings payload
+            const assessmentPayload = {
+                title: settings.title,
+                course_id: parseInt(selectedCourse),
+                batch_id: parseInt(selectedBatch),
+                type: 'quiz',
+                total_marks: totalMarks,
+                due_date: settings.dueDate || null,
+                time_limit_minutes: parseInt(settings.timeLimitHrs || 0) * 60 + parseInt(settings.timeLimitMins || 0),
+                passing_score: parseInt(settings.passingScore || 70),
+                shuffle_questions: settings.shuffleQuestions || false,
+                show_results_immediately: settings.showResults !== undefined ? settings.showResults : true,
+                assigned_to: settings.audience === 'Entire Class' ? 'entire_batch' : 'specific_students',
+                questions: {
+                    questions: questions.map((q, index) => ({
+                        id: q.id || `q_${index}`,
+                        questionNumber: index + 1,
+                        text: q.text || '',
+                        type: q.type || 'MCQ',
+                        options: q.options || [],
+                        correctOption: q.correctOption !== undefined ? q.correctOption : null,
+                        correctAnswer: q.correctOption !== undefined ? q.correctOption : null,
+                        points: parseInt(q.points) || 0,
+                        codeSnippet: q.codeSnippet || null
+                    }))
+                }
+            };
+
+            console.log('Publishing assessment:', assessmentPayload);
+            await assessmentsService.createAssessment(assessmentPayload);
+            alert('Assessment Published Successfully!');
             navigate('/assessment');
-        } catch (e) {
-            alert('Error publishing');
+        } catch (error) {
+            console.error('Error publishing assessment:', error);
+            alert(`Failed to publish assessment: ${error.response?.data?.detail || error.message}`);
         } finally {
             setLoading(false);
         }

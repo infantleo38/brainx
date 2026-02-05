@@ -1,112 +1,73 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getCurrentUser } from '../../services/api';
-import { assessmentData, assessmentQuestions } from '../../mock/assessmentQuestionsData';
+import assessmentsService from '../../services/assessments';
 
 export default function AssessmentAttempt() {
     const navigate = useNavigate();
     const { assignmentId } = useParams();
     const [user, setUser] = useState(null);
+    const [assessment, setAssessment] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [questions, setQuestions] = useState(assessmentQuestions);
-    const [timeRemaining, setTimeRemaining] = useState(assessmentData.timeLimit * 60); // Convert to seconds
+    const [questions, setQuestions] = useState([]);
+    const [timeRemaining, setTimeRemaining] = useState(0);
     const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [fullscreenExitAttempts, setFullscreenExitAttempts] = useState(0);
 
+    // Fetch assessment data and questions
     useEffect(() => {
-        const fetchUser = async () => {
+        const fetchAssessmentData = async () => {
             try {
                 const userData = await getCurrentUser();
                 setUser(userData);
-            } catch (error) {
-                console.error("Failed to fetch user", error);
-            }
-        };
-        fetchUser();
-    }, []);
 
-    // Fullscreen functionality
-    useEffect(() => {
-        // Request fullscreen when component mounts
-        const enterFullscreen = async () => {
-            try {
-                const elem = document.documentElement;
-                if (elem.requestFullscreen) {
-                    await elem.requestFullscreen();
-                } else if (elem.webkitRequestFullscreen) { /* Safari */
-                    await elem.webkitRequestFullscreen();
-                } else if (elem.msRequestFullscreen) { /* IE11 */
-                    await elem.msRequestFullscreen();
+                const assessmentData = await assessmentsService.getAssessmentWithQuestions(assignmentId);
+                setAssessment(assessmentData);
+
+                // Process questions
+                let questionsArray = assessmentData.questions?.questions || [];
+
+                // Add userAnswer and flagged properties
+                questionsArray = questionsArray.map((q, index) => ({
+                    ...q,
+                    questionNumber: index + 1,
+                    userAnswer: null,
+                    flagged: false
+                }));
+
+                // Shuffle questions if enabled
+                if (assessmentData.shuffle_questions) {
+                    questionsArray = shuffleArray(questionsArray);
+                    // Renumber after shuffle
+                    questionsArray = questionsArray.map((q, index) => ({
+                        ...q,
+                        questionNumber: index + 1
+                    }));
                 }
-                setIsFullscreen(true);
-            } catch (error) {
-                console.error('Failed to enter fullscreen:', error);
-                alert('⚠️ This assessment requires fullscreen mode. Please allow fullscreen access.');
-            }
-        };
 
-        enterFullscreen();
+                setQuestions(questionsArray);
 
-        // Monitor fullscreen changes
-        const handleFullscreenChange = () => {
-            const isCurrentlyFullscreen = !!(document.fullscreenElement ||
-                document.webkitFullscreenElement ||
-                document.msFullscreenElement);
-
-            setIsFullscreen(isCurrentlyFullscreen);
-
-            // If user exits fullscreen
-            if (!isCurrentlyFullscreen && fullscreenExitAttempts === 0) {
-                setFullscreenExitAttempts(1);
-
-                // Show warning
-                const userChoice = confirm(
-                    '⚠️ WARNING: Exiting fullscreen is not allowed during the assessment.\n\n' +
-                    'This is your only warning. If you exit fullscreen again, your exam will be automatically submitted.\n\n' +
-                    'Click OK to return to fullscreen mode.'
-                );
-
-                // Try to re-enter fullscreen
-                if (userChoice) {
-                    enterFullscreen();
-                } else {
-                    // If they refuse, submit the exam
-                    handleAutoSubmitExam();
+                // Set time limit
+                if (assessmentData.time_limit_minutes) {
+                    setTimeRemaining(assessmentData.time_limit_minutes * 60);
                 }
-            } else if (!isCurrentlyFullscreen && fullscreenExitAttempts >= 1) {
-                // Second attempt - auto submit
-                alert(
-                    '🚨 EXAM AUTO-SUBMITTED\n\n' +
-                    'You have exited fullscreen mode multiple times.\n' +
-                    'Your exam has been automatically submitted as per the proctoring policy.'
-                );
-                handleAutoSubmitExam();
+
+                setLoading(false);
+            } catch (error) {
+                console.error("Failed to fetch assessment", error);
+                alert("Failed to load assessment. Please try again.");
+                navigate('/student/assignments');
             }
         };
+        fetchAssessmentData();
+    }, [assignmentId, navigate]);
 
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-        document.addEventListener('msfullscreenchange', handleFullscreenChange);
-
-        return () => {
-            document.removeEventListener('fullscreenchange', handleFullscreenChange);
-            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-            document.removeEventListener('msfullscreenchange', handleFullscreenChange);
-
-            // Exit fullscreen when component unmounts
-            if (document.fullscreenElement) {
-                document.exitFullscreen();
-            } else if (document.webkitFullscreenElement) {
-                document.webkitExitFullscreen();
-            } else if (document.msFullscreenElement) {
-                document.msExitFullscreen();
-            }
-        };
-    }, [fullscreenExitAttempts]);
+    // Removed fullscreen functionality per user request
 
     // Timer countdown
     useEffect(() => {
+        if (!assessment || loading || timeRemaining === 0) return;
+
         const timer = setInterval(() => {
             setTimeRemaining(prev => {
                 if (prev <= 1) {
@@ -119,7 +80,19 @@ export default function AssessmentAttempt() {
         }, 1000);
 
         return () => clearInterval(timer);
-    }, []);
+    }, [assessment, loading]);
+
+    // Utility function to shuffle array
+    const shuffleArray = (array) => {
+        const shuffled = [...array];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+    };
+
+
 
     const formatTime = (seconds) => {
         const hrs = Math.floor(seconds / 3600);
@@ -161,27 +134,52 @@ export default function AssessmentAttempt() {
         alert('Draft saved successfully!');
     };
 
-    const handleSubmitExam = () => {
-        // TODO: Implement submit exam functionality
+    const handleSubmitExam = async () => {
         const answeredCount = questions.filter(q => q.userAnswer !== null).length;
-        if (confirm(`You have answered ${answeredCount} out of ${questions.length} questions. Are you sure you want to submit?`)) {
-            alert('Exam submitted successfully!');
-            // Exit fullscreen before navigating
-            if (document.fullscreenElement) {
-                document.exitFullscreen();
+        if (!confirm(`You have answered ${answeredCount} out of ${questions.length} questions. Are you sure you want to submit?`)) {
+            return;
+        }
+
+        try {
+            // Prepare answers object
+            const answers = {};
+            questions.forEach(q => {
+                answers[q.id.toString()] = q.userAnswer;
+            });
+
+            // Submit to backend
+            const result = await assessmentsService.submitAssessment(assignmentId, answers);
+
+            // Show results if enabled
+            if (result.show_results) {
+                alert(`Assessment submitted successfully!\n\nYour Score: ${result.marks_obtained}/${assessment.total_marks}\nPercentage: ${((result.marks_obtained / assessment.total_marks) * 100).toFixed(2)}%\n${result.marks_obtained >= (assessment.passing_score / 100) * assessment.total_marks ? 'Status: PASSED ✓' : 'Status: FAILED ✗'}`);
+            } else {
+                alert('Assessment submitted successfully! Results will be available later.');
             }
+
             navigate('/student/assignments');
+        } catch (error) {
+            console.error('Error submitting assessment:', error);
+            alert('Failed to submit assessment. Please try again.');
         }
     };
 
-    const handleAutoSubmitExam = () => {
-        // Auto-submit without confirmation
-        // TODO: Implement submit exam functionality
-        // Exit fullscreen before navigating
-        if (document.fullscreenElement) {
-            document.exitFullscreen();
+    const handleAutoSubmitExam = async () => {
+        try {
+            // Prepare answers object
+            const answers = {};
+            questions.forEach(q => {
+                answers[q.id.toString()] = q.userAnswer;
+            });
+
+            // Submit to backend
+            await assessmentsService.submitAssessment(assignmentId, answers);
+
+            navigate('/student/assignments');
+        } catch (error) {
+            console.error('Error auto-submitting assessment:', error);
+            navigate('/student/assignments');
         }
-        navigate('/student/assignments');
     };
 
     const currentQuestion = questions[currentQuestionIndex];
@@ -196,13 +194,24 @@ export default function AssessmentAttempt() {
         return 'unanswered';
     };
 
+    if (loading || !assessment || questions.length === 0) {
+        return (
+            <div className="bg-background-light font-display text-[#120f1a] antialiased h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary mx-auto mb-4"></div>
+                    <p className="text-gray-600 font-medium">Loading assessment...</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-background-light font-display text-[#120f1a] antialiased h-screen flex flex-col overflow-hidden">
             {/* Header */}
             <header className="h-20 bg-white/90 backdrop-blur-md border-b border-gray-100 flex items-center justify-between px-8 sticky top-0 z-50 shadow-sm">
                 <div className="flex flex-col">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">{assessmentData.type}</span>
-                    <h1 className="text-xl font-bold text-gray-900 leading-none">{assessmentData.title}</h1>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">{assessment.type}</span>
+                    <h1 className="text-xl font-bold text-gray-900 leading-none">{assessment.title}</h1>
                 </div>
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-3 bg-primary-light/50 px-6 py-2.5 rounded-2xl border border-primary/10">
                     <span className="material-symbols-outlined text-primary">timer</span>
@@ -231,9 +240,11 @@ export default function AssessmentAttempt() {
                                     <span className="text-sm font-bold text-gray-400 uppercase tracking-wide">
                                         Question {currentQuestion.questionNumber} of {questions.length}
                                     </span>
-                                    <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mt-3 leading-tight">
-                                        {currentQuestion.question}
-                                    </h2>
+                                    <div className="mb-6">
+                                        <p className="text-lg font-semibold text-gray-900 leading-relaxed">
+                                            {currentQuestion.text || currentQuestion.question || 'Question text not available'}
+                                        </p>
+                                    </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     <div className="bg-gray-50 px-3 py-1 rounded-lg border border-gray-100 whitespace-nowrap">
