@@ -7,4 +7,5 @@ __pycache__/
 alembic/
 alembic.ini
 .cpython-310.pyc
-.venv
+venv
+/venv/
