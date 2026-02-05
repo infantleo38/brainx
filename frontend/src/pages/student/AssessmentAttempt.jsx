@@ -259,6 +259,17 @@ export default function AssessmentAttempt() {
                                 </div>
                             </div>
 
+                            {/* Question Image (if applicable) */}
+                            {currentQuestion.pictureUrl && (
+                                <div className="mb-8 relative z-10">
+                                    <img
+                                        src={currentQuestion.pictureUrl}
+                                        alt="Question"
+                                        className="w-full max-h-96 rounded-xl border border-gray-200 shadow-sm object-contain bg-gray-50"
+                                    />
+                                </div>
+                            )}
+
                             {/* Code Snippet (if applicable) */}
                             {currentQuestion.codeSnippet && (
                                 <div className="bg-[#1e1b2e] rounded-xl p-6 mb-10 font-mono text-sm text-gray-300 shadow-inner border border-gray-800 relative z-10 group">
@@ -273,27 +284,111 @@ export default function AssessmentAttempt() {
 
                             {/* Answer Options */}
                             <div className="space-y-4 flex-1 relative z-10">
-                                {currentQuestion.options.map((option, index) => (
-                                    <label key={index} className="block cursor-pointer group">
-                                        <input
-                                            className="peer sr-only"
-                                            name="answer"
-                                            type="radio"
-                                            checked={currentQuestion.userAnswer === index}
-                                            onChange={() => handleAnswerSelect(index)}
+                                {/* Multiple Choice & True/False */}
+                                {(currentQuestion.type === 'Multiple Choice' || currentQuestion.type === 'True/False') && currentQuestion.options && currentQuestion.options.length > 0 && (
+                                    <div className="space-y-4">
+                                        {currentQuestion.options.map((option, index) => (
+                                            <label key={index} className="block cursor-pointer group">
+                                                <input
+                                                    className="peer sr-only"
+                                                    name="answer"
+                                                    type="radio"
+                                                    checked={currentQuestion.userAnswer === index}
+                                                    onChange={() => handleAnswerSelect(index)}
+                                                />
+                                                <div className={`flex items-center gap-5 p-5 rounded-2xl border transition-all duration-200 ${currentQuestion.userAnswer === index
+                                                    ? 'border-primary bg-primary-light shadow-sm ring-1 ring-primary/5'
+                                                    : 'border-gray-200 hover:border-primary/40 hover:bg-gray-50'
+                                                    }`}>
+                                                    <span className={`radio-circle w-6 h-6 rounded-full border-2 flex-shrink-0 transition-all ${currentQuestion.userAnswer === index
+                                                        ? 'border-primary border-[6px]'
+                                                        : 'border-gray-300'
+                                                        }`}></span>
+                                                    <span className="text-lg font-medium text-gray-700 group-hover:text-gray-900">{option}</span>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Code Snippet Answer Input */}
+                                {currentQuestion.type === 'Code Snippet' && (
+                                    <div className="space-y-3">
+                                        <label className="text-sm font-bold text-gray-700 block">
+                                            Your Answer
+                                        </label>
+                                        <textarea
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl font-mono text-sm bg-gray-50 outline-none focus:border-primary focus:bg-white transition-all resize-none"
+                                            placeholder="Type your answer or code here..."
+                                            value={currentQuestion.userAnswer || ''}
+                                            onChange={(e) => {
+                                                const updatedQuestions = [...questions];
+                                                updatedQuestions[currentQuestionIndex].userAnswer = e.target.value;
+                                                setQuestions(updatedQuestions);
+                                            }}
+                                            rows={8}
                                         />
-                                        <div className={`flex items-center gap-5 p-5 rounded-2xl border transition-all duration-200 ${currentQuestion.userAnswer === index
-                                            ? 'border-primary bg-primary-light shadow-sm ring-1 ring-primary/5'
-                                            : 'border-gray-200 hover:border-primary/40 hover:bg-gray-50'
-                                            }`}>
-                                            <span className={`radio-circle w-6 h-6 rounded-full border-2 flex-shrink-0 transition-all ${currentQuestion.userAnswer === index
-                                                ? 'border-primary border-[6px]'
-                                                : 'border-gray-300'
-                                                }`}></span>
-                                            <span className="text-lg font-medium text-gray-700 group-hover:text-gray-900">{option}</span>
+                                        <p className="text-xs text-gray-500">
+                                            Write your solution or explanation above
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Short Answer Input */}
+                                {currentQuestion.type === 'Short Answer' && (
+                                    <div className="space-y-3">
+                                        <label className="text-sm font-bold text-gray-700 block">
+                                            Your Answer
+                                        </label>
+                                        <textarea
+                                            className="w-full p-4 border-2 border-gray-200 rounded-xl text-sm bg-gray-50 outline-none focus:border-primary focus:bg-white transition-all resize-none"
+                                            placeholder="Type your answer here..."
+                                            value={currentQuestion.userAnswer || ''}
+                                            onChange={(e) => {
+                                                const updatedQuestions = [...questions];
+                                                updatedQuestions[currentQuestionIndex].userAnswer = e.target.value;
+                                                setQuestions(updatedQuestions);
+                                            }}
+                                            rows={4}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Picture Type (treated like Multiple Choice) */}
+                                {currentQuestion.type === 'Picture' && currentQuestion.pictureUrl && (
+                                    <div className="space-y-4">
+                                        {/* Display picture */}
+                                        <div className="mb-6">
+                                            <img
+                                                src={currentQuestion.pictureUrl}
+                                                alt="Question"
+                                                className="max-w-full max-h-96 rounded-xl border border-gray-200 shadow-sm"
+                                            />
                                         </div>
-                                    </label>
-                                ))}
+                                        {/* Answer options */}
+                                        {currentQuestion.options && currentQuestion.options.map((option, index) => (
+                                            <label key={index} className="block cursor-pointer group">
+                                                <input
+                                                    className="peer sr-only"
+                                                    name="answer"
+                                                    type="radio"
+                                                    checked={currentQuestion.userAnswer === index}
+                                                    onChange={() => handleAnswerSelect(index)}
+                                                />
+                                                <div className={`flex items-center gap-5 p-5 rounded-2xl border transition-all duration-200 ${currentQuestion.userAnswer === index
+                                                    ? 'border-primary bg-primary-light shadow-sm ring-1 ring-primary/5'
+                                                    : 'border-gray-200 hover:border-primary/40 hover:bg-gray-50'
+                                                    }`}>
+                                                    <span className={`radio-circle w-6 h-6 rounded-full border-2 flex-shrink-0 transition-all ${currentQuestion.userAnswer === index
+                                                        ? 'border-primary border-[6px]'
+                                                        : 'border-gray-300'
+                                                        }`}></span>
+                                                    <span className="text-lg font-medium text-gray-700 group-hover:text-gray-900">{option}</span>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Navigation Controls */}

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import items, users, login, roles, courses, classes, chats, assessments, uploads, teacher_slots, parent_student, class_sessions, providers, course_badges, teacher_courses, enrollments, meetings, attendance
+from app.api.v1.endpoints import items, users, login, roles, courses, classes, chats, assessments, uploads, teacher_slots, parent_student, class_sessions, providers, course_badges, teacher_courses, enrollments, meetings,attendance, question_bank
 
 api_router = APIRouter()
 api_router.include_router(items.router, prefix="/items", tags=["items"])
@@ -20,3 +20,5 @@ api_router.include_router(teacher_courses.router, prefix="/teacher-courses", tag
 api_router.include_router(enrollments.router, prefix="/enrollments", tags=["enrollments"])
 api_router.include_router(attendance.router, prefix="/attendance", tags=["attendance"])
 api_router.include_router(meetings.router, prefix="/meetings", tags=["meetings"])
+api_router.include_router(question_bank.router, prefix="/question-bank", tags=["question-bank"])
+

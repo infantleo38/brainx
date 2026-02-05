@@ -13,6 +13,7 @@ import Courses from './pages/Courses';
 import Assessment from './pages/Assessment';
 import AssessmentDetails from './pages/AssessmentDetails';
 import CreateAssessment from './pages/CreateAssessment';
+import QuizBankImport from './pages/QuizBankImport';
 
 import Layout from './components/Layout';
 import CreateCourse from './pages/CreateCourse';
@@ -66,6 +67,8 @@ function App() {
             <Route path="/assessment" element={<Assessment />} />
             <Route path="/assessment/:id" element={<AssessmentDetails />} />
             <Route path="/assessment/create" element={<CreateAssessment />} />
+            <Route path="/create-assessment" element={<CreateAssessment />} />
+            <Route path="/quiz-bank-import" element={<QuizBankImport />} />
             <Route path="/courses/create" element={<CreateCourse />} />
             <Route path="/teachers" element={<Teachers />} />
             <Route path="/classes/create" element={<CreateClass />} />

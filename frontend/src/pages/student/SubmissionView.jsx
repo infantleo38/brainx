@@ -195,6 +195,17 @@ export default function SubmissionView() {
                                 </div>
                             </div>
 
+                            {/* Question Image (if applicable) */}
+                            {currentQuestion.pictureUrl && (
+                                <div className="mb-8 relative z-10">
+                                    <img
+                                        src={currentQuestion.pictureUrl}
+                                        alt="Question"
+                                        className="w-full max-h-96 rounded-xl border border-gray-200 shadow-sm object-contain bg-gray-50"
+                                    />
+                                </div>
+                            )}
+
                             {currentQuestion.codeSnippet && (
                                 <div className="bg-[#1e1b2e] rounded-xl p-6 mb-8 font-mono text-sm text-gray-300 shadow-inner border border-gray-800 relative z-10">
                                     <div className="flex gap-1.5 mb-3 opacity-50">
@@ -207,42 +218,140 @@ export default function SubmissionView() {
                             )}
 
                             <div className="space-y-4 flex-1 relative z-10">
-                                {currentQuestion.options && currentQuestion.options.map((option, optIndex) => {
-                                    const isUserAnswer = userAnswer === optIndex;
-                                    const isCorrectOption = correctAnswer === optIndex;
+                                {/* For Multiple Choice, True/False, and Picture questions */}
+                                {(currentQuestion.type === 'Multiple Choice' || currentQuestion.type === 'True/False' || currentQuestion.type === 'Picture') && currentQuestion.options && currentQuestion.options.length > 0 && (
+                                    <>
+                                        {currentQuestion.options.map((option, optIndex) => {
+                                            const isUserAnswer = userAnswer === optIndex;
+                                            const isCorrectOption = correctAnswer === optIndex;
 
-                                    return (
-                                        <div
-                                            key={optIndex}
-                                            className={`flex items-center gap-5 p-5 rounded-2xl border-2 transition-all duration-200 ${isCorrectOption
-                                                    ? 'border-emerald-500 bg-emerald-50'
-                                                    : isUserAnswer
-                                                        ? 'border-red-500 bg-red-50 shadow-sm'
-                                                        : 'border-gray-100 bg-white opacity-60'
-                                                }`}
-                                        >
-                                            {isCorrectOption ? (
-                                                <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                                                    <span className="material-symbols-outlined text-white text-xs font-bold">check</span>
+                                            return (
+                                                <div
+                                                    key={optIndex}
+                                                    className={`flex items-center gap-5 p-5 rounded-2xl border-2 transition-all duration-200 ${isCorrectOption
+                                                        ? 'border-emerald-500 bg-emerald-50'
+                                                        : isUserAnswer
+                                                            ? 'border-red-500 bg-red-50 shadow-sm'
+                                                            : 'border-gray-100 bg-white opacity-60'
+                                                        }`}
+                                                >
+                                                    {isCorrectOption ? (
+                                                        <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                                                            <span className="material-symbols-outlined text-white text-xs font-bold">check</span>
+                                                        </div>
+                                                    ) : isUserAnswer ? (
+                                                        <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                                                            <span className="material-symbols-outlined text-white text-xs font-bold">close</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="w-6 h-6 rounded-full border-2 border-gray-200 flex-shrink-0"></div>
+                                                    )}
+                                                    <span className={`text-lg font-medium flex-1 ${isCorrectOption ? 'text-emerald-900' : isUserAnswer ? 'text-red-900' : 'text-gray-500'
+                                                        }`}>{option}</span>
+                                                    {isUserAnswer && !isCorrectOption && (
+                                                        <span className="text-xs font-bold text-red-600 uppercase tracking-tight bg-red-100 px-2 py-1 rounded">Your Answer</span>
+                                                    )}
+                                                    {isCorrectOption && (
+                                                        <span className="text-xs font-bold text-emerald-600 uppercase tracking-tight bg-emerald-100 px-2 py-1 rounded">Correct Answer</span>
+                                                    )}
                                                 </div>
-                                            ) : isUserAnswer ? (
-                                                <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-                                                    <span className="material-symbols-outlined text-white text-xs font-bold">close</span>
-                                                </div>
-                                            ) : (
-                                                <div className="w-6 h-6 rounded-full border-2 border-gray-200 flex-shrink-0"></div>
-                                            )}
-                                            <span className={`text-lg font-medium flex-1 ${isCorrectOption ? 'text-emerald-900' : isUserAnswer ? 'text-red-900' : 'text-gray-500'
-                                                }`}>{option}</span>
-                                            {isUserAnswer && !isCorrectOption && (
-                                                <span className="text-xs font-bold text-red-600 uppercase tracking-tight bg-red-100 px-2 py-1 rounded">Your Answer</span>
-                                            )}
-                                            {isCorrectOption && (
-                                                <span className="text-xs font-bold text-emerald-600 uppercase tracking-tight bg-emerald-100 px-2 py-1 rounded">Correct Answer</span>
-                                            )}
+                                            );
+                                        })}
+                                    </>
+                                )}
+
+                                {/* For Code Snippet questions */}
+                                {currentQuestion.type === 'Code Snippet' && (
+                                    <div className="space-y-6">
+                                        {/* Student's Answer */}
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-sm font-bold text-gray-700">Your Answer</label>
+                                                <span className={`text-xs font-bold px-2 py-1 rounded ${userAnswer ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                    {userAnswer ? 'Submitted' : 'Not Answered'}
+                                                </span>
+                                            </div>
+                                            <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 font-mono text-sm min-h-[120px]">
+                                                {userAnswer ? (
+                                                    <pre className="whitespace-pre-wrap text-gray-800">{userAnswer}</pre>
+                                                ) : (
+                                                    <p className="text-gray-400 italic">No answer provided</p>
+                                                )}
+                                            </div>
                                         </div>
-                                    );
-                                })}
+
+                                        {/* Expected Answer */}
+                                        {currentQuestion.expectedAnswer && (
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-bold text-emerald-700 flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-lg">check_circle</span>
+                                                    Expected Answer
+                                                </label>
+                                                <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4 font-mono text-sm min-h-[120px]">
+                                                    <pre className="whitespace-pre-wrap text-emerald-900">{currentQuestion.expectedAnswer}</pre>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Optional: Grading note */}
+                                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                                            <span className="material-symbols-outlined text-blue-600">info</span>
+                                            <div className="flex-1">
+                                                <p className="text-sm text-blue-900 font-medium">Manual Grading</p>
+                                                <p className="text-xs text-blue-700 mt-1">
+                                                    Code snippet questions are reviewed manually by your instructor.
+                                                    {isCorrect ? ' Your answer has been marked as correct.' : ' Please check the expected answer above.'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* For Short Answer questions */}
+                                {currentQuestion.type === 'Short Answer' && (
+                                    <div className="space-y-6">
+                                        {/* Student's Answer */}
+                                        <div className="space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-sm font-bold text-gray-700">Your Answer</label>
+                                                <span className={`text-xs font-bold px-2 py-1 rounded ${userAnswer ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                    {userAnswer ? 'Submitted' : 'Not Answered'}
+                                                </span>
+                                            </div>
+                                            <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4 text-sm min-h-[100px]">
+                                                {userAnswer ? (
+                                                    <p className="text-gray-800 whitespace-pre-wrap">{userAnswer}</p>
+                                                ) : (
+                                                    <p className="text-gray-400 italic">No answer provided</p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Expected Answer (if available) */}
+                                        {currentQuestion.correctAnswer && typeof currentQuestion.correctAnswer === 'string' && (
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-bold text-emerald-700 flex items-center gap-2">
+                                                    <span className="material-symbols-outlined text-lg">check_circle</span>
+                                                    Suggested Answer
+                                                </label>
+                                                <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4 text-sm min-h-[100px]">
+                                                    <p className="text-emerald-900 whitespace-pre-wrap">{currentQuestion.correctAnswer}</p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Grading note */}
+                                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+                                            <span className="material-symbols-outlined text-blue-600">info</span>
+                                            <div className="flex-1">
+                                                <p className="text-sm text-blue-900 font-medium">Manual Grading</p>
+                                                <p className="text-xs text-blue-700 mt-1">
+                                                    Short answer questions are reviewed manually by your instructor.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="mt-8 pt-6 border-t border-gray-100 relative z-10">
@@ -311,16 +420,16 @@ export default function SubmissionView() {
                                         key={question.id}
                                         onClick={() => handleQuestionNavigate(index)}
                                         className={`w-10 h-10 rounded-full font-bold text-sm flex items-center justify-center transition-all relative ${isCurrent
-                                                ? status === 'correct'
-                                                    ? 'bg-emerald-500 text-white ring-4 ring-primary/20 scale-110 shadow-lg'
-                                                    : status === 'incorrect'
-                                                        ? 'bg-red-500 text-white ring-4 ring-primary/20 scale-110 shadow-lg'
-                                                        : 'bg-gray-200 text-gray-500 ring-4 ring-primary/20 scale-110 shadow-lg'
-                                                : status === 'correct'
-                                                    ? 'bg-emerald-500 text-white hover:opacity-90'
-                                                    : status === 'incorrect'
-                                                        ? 'bg-red-500 text-white hover:opacity-90'
-                                                        : 'bg-gray-200 text-gray-500 hover:opacity-90'
+                                            ? status === 'correct'
+                                                ? 'bg-emerald-500 text-white ring-4 ring-primary/20 scale-110 shadow-lg'
+                                                : status === 'incorrect'
+                                                    ? 'bg-red-500 text-white ring-4 ring-primary/20 scale-110 shadow-lg'
+                                                    : 'bg-gray-200 text-gray-500 ring-4 ring-primary/20 scale-110 shadow-lg'
+                                            : status === 'correct'
+                                                ? 'bg-emerald-500 text-white hover:opacity-90'
+                                                : status === 'incorrect'
+                                                    ? 'bg-red-500 text-white hover:opacity-90'
+                                                    : 'bg-gray-200 text-gray-500 hover:opacity-90'
                                             }`}
                                     >
                                         {index + 1}

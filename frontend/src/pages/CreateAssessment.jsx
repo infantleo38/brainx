@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import assessmentsService from '../services/assessments';
 import { getCourses, getBatches } from '../services/api';
 
 export default function CreateAssessment() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [loading, setLoading] = useState(false);
 
     // State for Dynamic Selection
@@ -62,6 +63,26 @@ export default function CreateAssessment() {
         fetchBatches();
     }, [selectedCourse]);
 
+    // Handle imported questions from Question Bank
+    useEffect(() => {
+        if (location.state?.importedQuestions) {
+            const importedQuestions = location.state.importedQuestions.map(q => ({
+                id: Date.now() + Math.random(), // Generate new unique ID
+                text: q.text,
+                type: q.type || 'Multiple Choice',
+                options: q.options || ['Option 1', 'Option 2'],
+                correctOption: q.correctOption !== undefined ? q.correctOption : q.correctAnswer,
+                points: q.points || 5,
+                difficulty: q.difficulty,
+                category: q.category,
+                codeSnippet: q.codeSnippet
+            }));
+            setQuestions(prev => [...prev, ...importedQuestions]);
+            // Clear the location state
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state]);
+
 
     // Handlers
     const handleSettingChange = (field, value) => {
@@ -69,7 +90,33 @@ export default function CreateAssessment() {
     };
 
     const handleQuestionChange = (id, field, value) => {
-        setQuestions(questions.map(q => q.id === id ? { ...q, [field]: value } : q));
+        setQuestions(questions.map(q => {
+            if (q.id === id) {
+                let updatedQuestion = { ...q, [field]: value };
+
+                // Auto-fill for True/False
+                if (field === 'type' && value === 'True/False') {
+                    updatedQuestion.options = ['True', 'False'];
+                    updatedQuestion.correctOption = 0;
+                }
+
+                // Initialize code snippet field
+                if (field === 'type' && value === 'Code Snippet') {
+                    updatedQuestion.codeSnippet = updatedQuestion.codeSnippet || '';
+                    updatedQuestion.expectedAnswer = updatedQuestion.expectedAnswer || '';
+                    updatedQuestion.options = [];
+                }
+
+                // Reset to Multiple Choice defaults
+                if (field === 'type' && value === 'Multiple Choice' && q.type !== 'Multiple Choice') {
+                    updatedQuestion.options = ['Option 1', 'Option 2'];
+                    updatedQuestion.correctOption = 0;
+                }
+
+                return updatedQuestion;
+            }
+            return q;
+        }));
     };
 
     const handleAddQuestion = () => {
@@ -106,6 +153,24 @@ export default function CreateAssessment() {
 
     const handleRemoveOption = (qId, idx) => {
         setQuestions(questions.map(q => q.id === qId ? { ...q, options: q.options.filter((_, i) => i !== idx) } : q));
+    };
+
+    const handleImageUpload = (qId, file) => {
+        if (!file) return;
+
+        // Create object URL for preview
+        const previewUrl = URL.createObjectURL(file);
+
+        setQuestions(questions.map(q => {
+            if (q.id === qId) {
+                return {
+                    ...q,
+                    pictureFile: file,
+                    pictureUrl: previewUrl
+                };
+            }
+            return q;
+        }));
     };
 
 
@@ -151,7 +216,9 @@ export default function CreateAssessment() {
                         correctOption: q.correctOption !== undefined ? q.correctOption : null,
                         correctAnswer: q.correctOption !== undefined ? q.correctOption : null,
                         points: parseInt(q.points) || 0,
-                        codeSnippet: q.codeSnippet || null
+                        codeSnippet: q.codeSnippet || null,
+                        expectedAnswer: q.expectedAnswer || null,
+                        pictureUrl: q.pictureUrl || null
                     }))
                 }
             };
@@ -393,7 +460,22 @@ export default function CreateAssessment() {
                                                 <button className="p-1 hover:bg-gray-200 rounded text-gray-500"><span className="material-symbols-outlined text-lg">format_italic</span></button>
                                                 <button className="p-1 hover:bg-gray-200 rounded text-gray-500"><span className="material-symbols-outlined text-lg">format_underlined</span></button>
                                                 <div className="w-px h-4 bg-gray-300 mx-1"></div>
-                                                <button className="p-1 hover:bg-gray-200 rounded text-gray-500"><span className="material-symbols-outlined text-lg">image</span></button>
+                                                <>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) => handleImageUpload(q.id, e.target.files[0])}
+                                                        className="hidden"
+                                                        id={`picture-upload-toolbar-${q.id}`}
+                                                    />
+                                                    <label
+                                                        htmlFor={`picture-upload-toolbar-${q.id}`}
+                                                        className="p-1 hover:bg-gray-200 rounded text-gray-500 cursor-pointer flex items-center"
+                                                        title="Upload image for this question"
+                                                    >
+                                                        <span className="material-symbols-outlined text-lg">image</span>
+                                                    </label>
+                                                </>
                                             </div>
                                             <textarea
                                                 className="w-full p-4 text-sm text-gray-800 outline-none h-32 resize-none"
@@ -402,6 +484,25 @@ export default function CreateAssessment() {
                                                 onChange={(e) => handleQuestionChange(q.id, 'text', e.target.value)}
                                             />
                                         </div>
+                                        {/* Image Preview (for any question type) */}
+                                        {q.pictureUrl && (
+                                            <div className="mt-3 relative group">
+                                                <img
+                                                    src={q.pictureUrl}
+                                                    alt="Question"
+                                                    className="w-full max-h-80 object-contain bg-gray-50 rounded-lg border border-gray-200"
+                                                />
+                                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <label
+                                                        htmlFor={`picture-upload-toolbar-${q.id}`}
+                                                        className="px-3 py-1.5 bg-white/90 backdrop-blur-sm text-primary text-xs font-semibold rounded-lg cursor-pointer hover:bg-white shadow-sm border border-gray-200 flex items-center gap-1"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">photo_camera</span>
+                                                        Change
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {q.type === 'Multiple Choice' && (
@@ -438,6 +539,74 @@ export default function CreateAssessment() {
                                         </div>
                                     )}
 
+                                    {/* True/False Question Type */}
+                                    {q.type === 'True/False' && (
+                                        <div className="space-y-3">
+                                            <label className="text-xs font-bold uppercase text-gray-400 flex justify-between">
+                                                <span>Answer Options</span>
+                                                <span className="text-green-600">Select correct answer</span>
+                                            </label>
+                                            {q.options?.map((opt, optIndex) => (
+                                                <div key={optIndex} className="flex items-center gap-3">
+                                                    <input
+                                                        className="w-5 h-5 text-primary border-gray-300 focus:ring-primary"
+                                                        type="radio"
+                                                        name={`q${q.id}_ans`}
+                                                        checked={q.correctOption === optIndex}
+                                                        onChange={() => handleQuestionChange(q.id, 'correctOption', optIndex)}
+                                                    />
+                                                    <div className={`flex-1 px-4 py-2 border rounded-lg text-sm font-medium ${q.correctOption === optIndex ? 'bg-green-50 border-green-200 text-green-800' : 'bg-white border-gray-200 text-gray-700'}`}>
+                                                        {opt}
+                                                    </div>
+                                                    {q.correctOption === optIndex && <span className="material-symbols-outlined text-green-500 text-lg">check_circle</span>}
+                                                </div>
+                                            ))}
+                                            <p className="text-xs text-gray-500 pl-8">Note: True/False options cannot be modified</p>
+                                        </div>
+                                    )}
+
+                                    {/* Code Snippet Question Type */}
+                                    {q.type === 'Code Snippet' && (
+                                        <div className="space-y-4">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold uppercase text-gray-400">Code Editor</label>
+                                                <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-900">
+                                                    <div className="bg-gray-800 px-3 py-2 border-b border-gray-700 flex items-center gap-2">
+                                                        <div className="flex gap-2">
+                                                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                                                            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                                        </div>
+                                                        <span className="text-xs text-gray-400 ml-2">code.js</span>
+                                                    </div>
+                                                    <textarea
+                                                        className="w-full p-4 font-mono text-sm bg-gray-900 text-gray-100 outline-none resize-none"
+                                                        placeholder="// Paste or write code here...
+function example() {
+  return 'Hello, World!';
+}"
+                                                        value={q.codeSnippet || ''}
+                                                        onChange={(e) => handleQuestionChange(q.id, 'codeSnippet', e.target.value)}
+                                                        rows={12}
+                                                        style={{ tabSize: 2 }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold uppercase text-gray-400">Expected Answer/Output</label>
+                                                <textarea
+                                                    className="w-full p-4 border border-gray-200 rounded-xl text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"
+                                                    placeholder="Enter the expected answer, output, or solution explanation..."
+                                                    value={q.expectedAnswer || ''}
+                                                    onChange={(e) => handleQuestionChange(q.id, 'expectedAnswer', e.target.value)}
+                                                    rows={4}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+
+
                                     <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between -mx-6 -mb-6 mt-4">
                                         <div className="flex items-center gap-4">
                                             <label className="flex items-center gap-2 cursor-pointer">
@@ -465,6 +634,11 @@ export default function CreateAssessment() {
                         <button onClick={handleAddQuestion} className="w-full py-4 rounded-2xl border-2 border-dashed border-gray-300 text-gray-500 font-semibold flex items-center justify-center gap-2 hover:border-primary hover:text-primary hover:bg-primary-light/20 transition-all duration-300 group">
                             <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_circle</span>
                             Add New Question
+                        </button>
+
+                        <button onClick={() => navigate('/quiz-bank-import')} className="w-full py-4 rounded-2xl border-2 border-primary bg-primary-light/20 text-primary font-semibold flex items-center justify-center gap-2 hover:bg-primary hover:text-white transition-all duration-300 group">
+                            <span className="material-symbols-outlined group-hover:scale-110 transition-transform">library_add</span>
+                            Import from Question Bank
                         </button>
                     </div>
                 </section>

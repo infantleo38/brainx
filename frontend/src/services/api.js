@@ -427,7 +427,12 @@ export const getBatchResources = async (batchId) => {
 };
 
 const api = {
-    get: (url, options = {}, token = null) => fetchWithAuth(url, { ...options, method: 'GET' }, token),
+    get: async (url, options = {}, token = null) => {
+        console.log('API GET called:', url);
+        const result = await fetchWithAuth(url, { ...options, method: 'GET' }, token);
+        console.log('API GET result:', result);
+        return result;
+    },
     post: (url, data, options = {}, token = null) => fetchWithAuth(url, {
         ...options,
         method: 'POST',
