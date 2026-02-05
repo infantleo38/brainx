@@ -22,6 +22,13 @@ class Assessment(Base):
     due_date = Column(DateTime(timezone=True), nullable=True)
     template_url = Column(String, nullable=True) # URL to Bunny.net JSON storage
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Quiz Settings
+    time_limit_minutes = Column(Integer, nullable=True)  # Time limit in minutes
+    passing_score = Column(Integer, default=70)  # Passing score percentage
+    shuffle_questions = Column(Integer, default=0)  # 0 = False, 1 = True (SQLite compatibility)
+    show_results_immediately = Column(Integer, default=1)  # 0 = False, 1 = True
+    assigned_to = Column(Text, default="entire_batch")  # "entire_batch" or JSON array of student IDs
 
     # Relationships
     course = relationship("Course", backref="assessments")
@@ -35,6 +42,7 @@ class AssessmentSubmission(Base):
     assessment_id = Column(Integer, ForeignKey("assessments.id"), nullable=False)
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     marks_obtained = Column(Integer, nullable=True)
+    response_data = Column(Text, nullable=True)  # JSON string of student answers
     submitted_at = Column(DateTime(timezone=True), server_default=func.now())
 
     assessment = relationship("Assessment", back_populates="submissions")
