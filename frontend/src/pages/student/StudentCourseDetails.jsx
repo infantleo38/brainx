@@ -1,12 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { getBatchResources } from '../../services/api';
 
 export default function StudentCourseDetails() {
-    const { courseId } = useParams();
+    const { courseId } = useParams(); // This is actually batchId based on context
     const [notesOpen, setNotesOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState('overview');
+    const [resources, setResources] = useState([]);
+    const [loadingResources, setLoadingResources] = useState(false);
+
+    // Placeholder YouTube Video ID - can be replaced with dynamic value
+    const youtubeVideoId = 'dQw4w9WgXcQ'; // Replace with actual video ID or fetch from API
 
     // Placeholder data - in a real app, fetch based on courseId
     const courseTitle = "Algorithm Analysis & Design";
+
+    useEffect(() => {
+        if (activeTab === 'resources' && resources.length === 0) {
+            fetchResources();
+        }
+    }, [activeTab]);
+
+    const fetchResources = async () => {
+        setLoadingResources(true);
+        try {
+            const data = await getBatchResources(courseId);
+            setResources(data || []);
+        } catch (error) {
+            console.error('Failed to fetch resources:', error);
+        } finally {
+            setLoadingResources(false);
+        }
+    };
+
+    const getFileIcon = (fileName) => {
+        const ext = fileName?.split('.').pop()?.toLowerCase();
+        switch (ext) {
+            case 'pdf': return 'picture_as_pdf';
+            case 'doc':
+            case 'docx': return 'description';
+            case 'xls':
+            case 'xlsx': return 'table_chart';
+            case 'ppt':
+            case 'pptx': return 'slideshow';
+            case 'jpg':
+            case 'jpeg':
+            case 'png':
+            case 'gif': return 'image';
+            case 'mp4':
+            case 'mov':
+            case 'avi': return 'movie';
+            case 'mp3':
+            case 'wav': return 'audio_file';
+            case 'zip':
+            case 'rar': return 'folder_zip';
+            default: return 'insert_drive_file';
+        }
+    };
+
+    const formatFileSize = (bytes) => {
+        if (!bytes) return 'N/A';
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
+    };
 
     return (
         <div className="flex flex-col h-full overflow-hidden relative font-display text-[#120f1a]">
@@ -48,90 +105,151 @@ export default function StudentCourseDetails() {
 
                     {/* Left Column: Video & Lessons */}
                     <div className="flex-1 space-y-6 overflow-hidden flex flex-col">
-                        {/* Video Player Area */}
-                        <div className="bg-black rounded-2xl overflow-hidden shadow-deep-purple relative aspect-video group">
-                            <img alt="Video Thumbnail" className="w-full h-full object-cover opacity-80"
-                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCePu11tYQB6YoUg2pOPDjHEA0Hx5bcwaVWkIe3rvThwznOcHENEI61Tq_rGBR5-NCdwQDeaL9afPCCAbZlrre3RmNxQvaxkKTbqodF1bJiQ5T-K2WaKefuwNxZcBCILQLhruo94mryMyQg8O-NQRww6WnDi5QbOGYmOGNSnTbh0SmYAxx40zf_SL5iXZ0lEeCOdqDV16LsNNjDkHG9ilJ2KdmB8Wk83zUetbluXJiinWfmNxbwtEOQZAY0udIF-Xr5GpPxSOzdLMk" />
-                            <div className="absolute inset-0 video-gradient flex flex-col justify-end p-6" style={{ background: 'linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.6) 100%)' }}>
-                                <div className="absolute inset-0 flex items-center justify-center group-hover:scale-105 transition-transform duration-300 cursor-pointer">
-                                    <div className="w-20 h-20 rounded-full glass-overlay flex items-center justify-center shadow-2xl backdrop-blur-md" style={{ background: 'rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
-                                        <span className="material-symbols-outlined text-white text-4xl fill-current">play_arrow</span>
-                                    </div>
-                                </div>
-                                <div className="glass-overlay p-4 rounded-xl flex items-center gap-4 text-white z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: 'rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
-                                    <button className="hover:text-primary-light transition-colors"><span className="material-symbols-outlined">play_arrow</span></button>
-                                    <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden cursor-pointer">
-                                        <div className="w-1/3 h-full bg-primary rounded-full"></div>
-                                    </div>
-                                    <span className="text-xs font-medium">12:45 / 45:00</span>
-                                    <button className="hover:text-primary-light transition-colors"><span className="material-symbols-outlined">volume_up</span></button>
-                                    <button className="hover:text-primary-light transition-colors"><span className="material-symbols-outlined">fullscreen</span></button>
-                                </div>
-                            </div>
-                            <div className="absolute top-6 right-6">
-                                <span className="bg-red-500/90 text-white text-xs font-bold px-3 py-1 rounded-full backdrop-blur-sm border border-red-400/30 flex items-center gap-1">
-                                    <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span> REC
-                                </span>
-                            </div>
+                        {/* YouTube Video Player */}
+                        <div className="bg-black rounded-2xl overflow-hidden shadow-deep-purple relative aspect-video">
+                            <iframe
+                                className="w-full h-full"
+                                src={`https://www.youtube.com/embed/${youtubeVideoId}?rel=0&modestbranding=1`}
+                                title="Course Video"
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowFullScreen
+                            ></iframe>
                         </div>
 
-                        {/* Lesson List */}
+                        {/* Tabs Content */}
                         <div className="bg-white rounded-2xl p-6 shadow-card flex-1 flex flex-col overflow-hidden">
                             <div className="flex items-center gap-6 border-b border-gray-100 pb-4 mb-6 overflow-x-auto">
-                                <button className="text-primary font-bold border-b-2 border-primary pb-4 -mb-4 px-2 whitespace-nowrap">Overview</button>
-                                <button className="text-gray-500 hover:text-gray-900 font-medium pb-4 -mb-4 px-2 whitespace-nowrap transition-colors">Resources</button>
-                                <button className="text-gray-500 hover:text-gray-900 font-medium pb-4 -mb-4 px-2 whitespace-nowrap transition-colors">Announcements</button>
-                                <button className="text-gray-500 hover:text-gray-900 font-medium pb-4 -mb-4 px-2 whitespace-nowrap transition-colors">Q&amp;A</button>
+                                <button
+                                    onClick={() => setActiveTab('overview')}
+                                    className={`font-bold pb-4 -mb-4 px-2 whitespace-nowrap transition-colors ${activeTab === 'overview' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 hover:text-gray-900'}`}
+                                >Overview</button>
+                                <button
+                                    onClick={() => setActiveTab('resources')}
+                                    className={`font-bold pb-4 -mb-4 px-2 whitespace-nowrap transition-colors ${activeTab === 'resources' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 hover:text-gray-900'}`}
+                                >Resources</button>
+                                <button
+                                    onClick={() => setActiveTab('announcements')}
+                                    className={`font-medium pb-4 -mb-4 px-2 whitespace-nowrap transition-colors ${activeTab === 'announcements' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 hover:text-gray-900'}`}
+                                >Announcements</button>
+                                <button
+                                    onClick={() => setActiveTab('qa')}
+                                    className={`font-medium pb-4 -mb-4 px-2 whitespace-nowrap transition-colors ${activeTab === 'qa' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 hover:text-gray-900'}`}
+                                >Q&amp;A</button>
                             </div>
-                            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-                                <h3 className="text-lg font-bold text-gray-900 mb-2">Module 3: Graph Algorithms</h3>
-                                <div className="space-y-3">
-                                    <div className="bg-primary-light/50 border border-primary/10 p-4 rounded-xl flex items-start gap-4">
-                                        <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center flex-shrink-0 mt-0.5">
-                                            <span className="material-symbols-outlined text-sm">play_arrow</span>
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex justify-between items-start">
-                                                <h4 className="font-bold text-primary text-sm mb-1">Lesson 3.1: Depth-First Search</h4>
-                                                <span className="text-xs text-primary font-medium bg-white px-2 py-0.5 rounded-md shadow-sm">Playing</span>
+
+                            <div className="flex-1 overflow-y-auto pr-2">
+                                {/* Overview Tab */}
+                                {activeTab === 'overview' && (
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-bold text-gray-900 mb-2">Module 3: Graph Algorithms</h3>
+                                        <div className="space-y-3">
+                                            <div className="bg-primary-light/50 border border-primary/10 p-4 rounded-xl flex items-start gap-4">
+                                                <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                    <span className="material-symbols-outlined text-sm">play_arrow</span>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <h4 className="font-bold text-primary text-sm mb-1">Lesson 3.1: Depth-First Search</h4>
+                                                        <span className="text-xs text-primary font-medium bg-white px-2 py-0.5 rounded-md shadow-sm">Playing</span>
+                                                    </div>
+                                                    <p className="text-xs text-gray-600 line-clamp-2">Understanding the recursive nature of DFS and its applications in maze solving and cycle detection.</p>
+                                                </div>
                                             </div>
-                                            <p className="text-xs text-gray-600 line-clamp-2">Understanding the recursive nature of DFS and its applications in maze solving and cycle detection.</p>
+                                            <div className="bg-white border border-gray-100 p-4 rounded-xl flex items-start gap-4 hover:border-gray-200 transition-colors group cursor-pointer">
+                                                <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                    <span className="material-symbols-outlined text-sm">check</span>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <h4 className="font-semibold text-gray-900 text-sm mb-1 group-hover:text-primary transition-colors">Lesson 3.2: Breadth-First Search</h4>
+                                                        <span className="text-xs text-gray-400 font-medium">45 min</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="bg-gray-50 border border-gray-100 p-4 rounded-xl flex items-start gap-4 opacity-70">
+                                                <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                    <span className="material-symbols-outlined text-sm">lock</span>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <h4 className="font-semibold text-gray-500 text-sm mb-1">Lesson 3.3: Connected Components</h4>
+                                                        <span className="text-xs text-gray-400 font-medium">30 min</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="bg-gray-50 border border-gray-100 p-4 rounded-xl flex items-start gap-4 opacity-70">
+                                                <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                    <span className="material-symbols-outlined text-sm">lock</span>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-start">
+                                                        <h4 className="font-semibold text-gray-500 text-sm mb-1">Lesson 3.4: Shortest Paths</h4>
+                                                        <span className="text-xs text-gray-400 font-medium">55 min</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="bg-white border border-gray-100 p-4 rounded-xl flex items-start gap-4 hover:border-gray-200 transition-colors group cursor-pointer">
-                                        <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                            <span className="material-symbols-outlined text-sm">check</span>
+                                )}
+
+                                {/* Resources Tab */}
+                                {activeTab === 'resources' && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-lg font-bold text-gray-900">Course Resources</h3>
+                                            <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full font-medium">{resources.length} files</span>
                                         </div>
-                                        <div className="flex-1">
-                                            <div className="flex justify-between items-start">
-                                                <h4 className="font-semibold text-gray-900 text-sm mb-1 group-hover:text-primary transition-colors">Lesson 3.2: Breadth-First Search</h4>
-                                                <span className="text-xs text-gray-400 font-medium">45 min</span>
+                                        {loadingResources ? (
+                                            <div className="flex items-center justify-center py-12">
+                                                <span className="material-symbols-outlined animate-spin text-primary text-3xl">progress_activity</span>
                                             </div>
-                                        </div>
-                                    </div>
-                                    <div className="bg-gray-50 border border-gray-100 p-4 rounded-xl flex items-start gap-4 opacity-70">
-                                        <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                            <span className="material-symbols-outlined text-sm">lock</span>
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex justify-between items-start">
-                                                <h4 className="font-semibold text-gray-500 text-sm mb-1">Lesson 3.3: Connected Components</h4>
-                                                <span className="text-xs text-gray-400 font-medium">30 min</span>
+                                        ) : resources.length === 0 ? (
+                                            <div className="text-center py-12">
+                                                <span className="material-symbols-outlined text-gray-300 text-6xl mb-4">folder_off</span>
+                                                <p className="text-gray-500 font-medium">No resources available yet</p>
+                                                <p className="text-gray-400 text-sm">Check back later or ask your instructor.</p>
                                             </div>
-                                        </div>
-                                    </div>
-                                    <div className="bg-gray-50 border border-gray-100 p-4 rounded-xl flex items-start gap-4 opacity-70">
-                                        <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-400 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                            <span className="material-symbols-outlined text-sm">lock</span>
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex justify-between items-start">
-                                                <h4 className="font-semibold text-gray-500 text-sm mb-1">Lesson 3.4: Shortest Paths</h4>
-                                                <span className="text-xs text-gray-400 font-medium">55 min</span>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {resources.map((file, index) => (
+                                                    <a
+                                                        key={index}
+                                                        href={file.url || file.Path || '#'}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center gap-4 p-4 bg-white border border-gray-100 rounded-xl hover:border-primary/30 hover:shadow-md transition-all group"
+                                                    >
+                                                        <div className="w-12 h-12 rounded-xl bg-primary-light flex items-center justify-center text-primary flex-shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                                                            <span className="material-symbols-outlined">{getFileIcon(file.ObjectName || file.name)}</span>
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-semibold text-gray-900 text-sm truncate group-hover:text-primary transition-colors">{file.ObjectName || file.name || 'Untitled'}</p>
+                                                            <p className="text-xs text-gray-500">{formatFileSize(file.Length || file.size)}</p>
+                                                        </div>
+                                                        <span className="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors">download</span>
+                                                    </a>
+                                                ))}
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
-                                </div>
+                                )}
+
+                                {/* Announcements Tab */}
+                                {activeTab === 'announcements' && (
+                                    <div className="text-center py-12">
+                                        <span className="material-symbols-outlined text-gray-300 text-6xl mb-4">campaign</span>
+                                        <p className="text-gray-500 font-medium">No announcements yet</p>
+                                    </div>
+                                )}
+
+                                {/* Q&A Tab */}
+                                {activeTab === 'qa' && (
+                                    <div className="text-center py-12">
+                                        <span className="material-symbols-outlined text-gray-300 text-6xl mb-4">forum</span>
+                                        <p className="text-gray-500 font-medium">Q&A section coming soon</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

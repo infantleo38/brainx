@@ -448,11 +448,14 @@ const api = {
     delete: (url, options = {}, token = null) => fetchWithAuth(url, { ...options, method: 'DELETE' }, token),
 };
 
-export const submitAttendance = async (session_id, records, token = null) => {
+export const submitAttendance = async (payload, token = null) => {
+    // payload should contain: { session_id, batch_id, date, records }
+    // For session-based: session_id required
+    // For date-based: batch_id and date required, session_id can be null
     return fetchWithAuth('/attendance/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id, records }),
+        body: JSON.stringify(payload),
     }, token);
 };
 
