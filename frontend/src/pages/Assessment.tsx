@@ -88,12 +88,12 @@ export default function Assessment() {
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
                                 {loading && (
                                     <tr>
-                                        <td colSpan="6" className="px-6 py-8 text-center text-slate-500">Loading assessments...</td>
+                                        <td colSpan={6} className="px-6 py-8 text-center text-slate-500">Loading assessments...</td>
                                     </tr>
                                 )}
                                 {!loading && assessments.length === 0 && (
                                     <tr>
-                                        <td colSpan="6" className="px-6 py-8 text-center text-slate-500">No assessments found. Create one to get started.</td>
+                                        <td colSpan={6} className="px-6 py-8 text-center text-slate-500">No assessments found. Create one to get started.</td>
                                     </tr>
                                 )}
                                 {assessments.filter(a => a.title.toLowerCase().includes(searchTerm.toLowerCase())).map((assessment) => (

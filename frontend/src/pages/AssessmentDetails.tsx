@@ -212,7 +212,7 @@ export default function AssessmentDetails() {
                                 <tbody className="divide-y divide-[#ebe8f2] dark:divide-white/5">
                                     {filteredSubmissions.length === 0 && (
                                         <tr>
-                                            <td colSpan="7" className="px-6 py-8 text-center text-[#655393] dark:text-[#a394c7]">
+                                            <td colSpan={7} className="px-6 py-8 text-center text-[#655393] dark:text-[#a394c7]">
                                                 No submissions found.
                                             </td>
                                         </tr>

@@ -152,9 +152,9 @@ const Parents = () => {
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {loading ? (
-                                        <tr><td colSpan="4" className="text-center py-8 text-gray-500">Loading parents...</td></tr>
+                                        <tr><td colSpan={4} className="text-center py-8 text-gray-500">Loading parents...</td></tr>
                                     ) : filteredParents.length === 0 ? (
-                                        <tr><td colSpan="4" className="text-center py-8 text-gray-500">No parents found.</td></tr>
+                                        <tr><td colSpan={4} className="text-center py-8 text-gray-500">No parents found.</td></tr>
                                     ) : (
                                         filteredParents.map(parent => (
                                             <tr key={parent.id} className="hover:bg-gray-50/50 transition-colors group">
