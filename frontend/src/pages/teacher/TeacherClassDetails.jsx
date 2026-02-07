@@ -141,6 +141,28 @@ export default function TeacherClassDetails() {
         }
     };
 
+    const handleOpenAttendanceForDate = async (date) => {
+        // Create a pseudo-session object for today's date
+        const todaySession = {
+            id: null, // No session ID for date-based attendance
+            date: date.toISOString().split('T')[0], // YYYY-MM-DD format
+            start_time: date.toISOString(),
+            end_time: date.toISOString()
+        };
+
+        setSelectedSessionForAttendance(todaySession);
+        setIsAttendanceModalOpen(true);
+
+        const students = batchDetails?.members || [];
+        // For date-based attendance, start fresh with all present
+        setAttendanceList(students.map(s => ({
+            student_id: s.user_id,
+            student_name: s.user_name,
+            status: 'present',
+            remarks: ''
+        })));
+    };
+
     const updateAttendanceStatus = (index, newStatus) => {
         const newList = [...attendanceList];
         newList[index].status = newStatus;
@@ -150,15 +172,30 @@ export default function TeacherClassDetails() {
     const handleSubmitAttendance = async () => {
         setSubmittingAttendance(true);
         try {
-            // Ensure each record has session_id as required by backend schema
+            const sessionId = selectedSessionForAttendance.id || null;
+            const batchId = parseInt(courseId);
+            const attendanceDate = selectedSessionForAttendance.date || new Date().toISOString().split('T')[0];
+
+            // Format records for submission with all required fields
             const formattedRecords = attendanceList.map(record => ({
                 student_id: record.student_id,
-                session_id: selectedSessionForAttendance.id,
+                session_id: sessionId,
+                batch_id: batchId,
+                date: attendanceDate,
                 status: record.status,
-                remarks: record.remarks
+                remarks: record.remarks || ''
             }));
 
-            await submitAttendance(selectedSessionForAttendance.id, formattedRecords);
+            // Build the payload
+            const payload = {
+                session_id: sessionId,
+                batch_id: batchId,
+                date: attendanceDate,
+                records: formattedRecords
+            };
+
+            console.log('Submitting attendance payload:', payload);
+            await submitAttendance(payload);
             alert("Attendance submitted successfully!");
             setIsAttendanceModalOpen(false);
         } catch (error) {
@@ -248,43 +285,66 @@ export default function TeacherClassDetails() {
                                 <div className="p-6 border-b border-gray-50 flex items-center justify-between">
                                     <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                                         <span className="material-symbols-outlined text-primary">calendar_month</span>
-                                        Class Sessions
+                                        Attendance
                                     </h2>
+                                    <span className="text-sm text-gray-500">
+                                        {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                    </span>
                                 </div>
-                                <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
-                                    {allSessions.length > 0 ? (
-                                        allSessions.map((session) => (
-                                            <div key={session.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                                                <div>
-                                                    <p className="text-sm font-bold text-gray-900">
-                                                        {formatDate(session.start_time)}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        {new Date(session.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                        {' - '}
-                                                        {new Date(session.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </p>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    {/* Show status chip if needed, e.g. based on time */}
-                                                    {new Date(session.start_time) < new Date() ? (
-                                                        <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-[10px] font-bold uppercase">Completed</span>
-                                                    ) : (
-                                                        <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase">Upcoming</span>
-                                                    )}
-                                                    <button
-                                                        onClick={() => handleOpenAttendance(session)}
-                                                        className="px-3 py-1.5 border border-primary text-primary hover:bg-primary hover:text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[16px]">edit_calendar</span>
-                                                        Attendance
-                                                    </button>
-                                                </div>
+                                <div className="p-6">
+                                    {/* Today's Attendance Card */}
+                                    <div className="bg-gradient-to-r from-primary/5 to-indigo-50 border border-primary/10 rounded-2xl p-6 mb-6">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Today's Date</p>
+                                                <p className="text-2xl font-bold text-gray-900">
+                                                    {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                </p>
+                                                <p className="text-sm text-gray-500 mt-1">
+                                                    {batchDetails?.members?.length || 0} students in this batch
+                                                </p>
                                             </div>
-                                        ))
-                                    ) : (
-                                        <div className="p-8 text-center text-gray-400 text-sm">
-                                            No class sessions scheduled.
+                                            <button
+                                                onClick={() => handleOpenAttendanceForDate(new Date())}
+                                                className="px-6 py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary-dark transition-all flex items-center gap-2 shadow-lg shadow-primary/20"
+                                            >
+                                                <span className="material-symbols-outlined">edit_calendar</span>
+                                                Take Attendance
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Previous Sessions List (optional) */}
+                                    {allSessions.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Previous Sessions</p>
+                                            <div className="divide-y divide-gray-50 max-h-[200px] overflow-y-auto border border-gray-100 rounded-xl">
+                                                {allSessions.slice(0, 5).map((session) => (
+                                                    <div key={session.id} className="p-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-gray-900">
+                                                                {formatDate(session.start_time)}
+                                                            </p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {new Date(session.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            {new Date(session.start_time) < new Date() ? (
+                                                                <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-[10px] font-bold uppercase">Completed</span>
+                                                            ) : (
+                                                                <span className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase">Upcoming</span>
+                                                            )}
+                                                            <button
+                                                                onClick={() => handleOpenAttendance(session)}
+                                                                className="px-2 py-1 text-primary hover:bg-primary-light text-xs font-bold rounded-lg transition-all"
+                                                            >
+                                                                View
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                 </div>

@@ -43,18 +43,38 @@ class CRUDAttendance:
         )
         return result.scalars().all()
 
-    async def upsert_bulk(self, db: AsyncSession, *, session_id: int, records: List[AttendanceCreate]) -> List[Attendance]:
-        # Fetch session details to get batch_id and course_id
-        session_result = await db.execute(select(ClassSession).filter(ClassSession.id == session_id))
-        session_obj = session_result.scalars().first()
+    async def upsert_bulk(self, db: AsyncSession, *, session_id: Optional[int], batch_id: Optional[int] = None, date = None, records: List[AttendanceCreate]) -> List[Attendance]:
+        # Determine if this is session-based or date-based attendance
+        is_date_based = session_id is None and batch_id is not None and date is not None
         
-        # Process in batches if list is huge, but here standard size is fine
+        session_obj = None
+        if session_id:
+            # Fetch session details to get batch_id and course_id
+            session_result = await db.execute(select(ClassSession).filter(ClassSession.id == session_id))
+            session_obj = session_result.scalars().first()
+        
+        # Process records
         values = []
         for record in records:
-            data = record.dict()
-            if session_obj:
-                data['batch_id'] = session_obj.batch_id
-                data['course_id'] = session_obj.course_id
+            data = {
+                'student_id': record.student_id,
+                'status': record.status,
+                'remarks': record.remarks,
+            }
+            
+            if is_date_based:
+                # Date-based attendance
+                data['session_id'] = None
+                data['batch_id'] = batch_id
+                data['date'] = date
+                data['course_id'] = None  # Could be fetched from batch if needed
+            else:
+                # Session-based attendance
+                data['session_id'] = session_id
+                if session_obj:
+                    data['batch_id'] = session_obj.batch_id
+                    data['course_id'] = session_obj.course_id
+                    
             values.append(data)
 
         if not values:
@@ -62,22 +82,45 @@ class CRUDAttendance:
 
         # PostgreSQL upsert (ON CONFLICT)
         stmt = insert(Attendance).values(values)
-        stmt = stmt.on_conflict_do_update(
-            constraint='uq_attendance_session_student',
-            set_={
-                'status': stmt.excluded.status,
-                'remarks': stmt.excluded.remarks,
-                'batch_id': stmt.excluded.batch_id,
-                'course_id': stmt.excluded.course_id,
-                # 'created_at': stmt.excluded.created_at # Keep original created_at
-            }
-        )
+        
+        if is_date_based:
+            # Use batch_id + date + student_id constraint for date-based
+            stmt = stmt.on_conflict_do_update(
+                constraint='uq_attendance_batch_date_student',
+                set_={
+                    'status': stmt.excluded.status,
+                    'remarks': stmt.excluded.remarks,
+                }
+            )
+        else:
+            # Use session_id + student_id constraint for session-based
+            stmt = stmt.on_conflict_do_update(
+                constraint='uq_attendance_session_student',
+                set_={
+                    'status': stmt.excluded.status,
+                    'remarks': stmt.excluded.remarks,
+                    'batch_id': stmt.excluded.batch_id,
+                    'course_id': stmt.excluded.course_id,
+                }
+            )
         
         await db.execute(stmt)
         await db.commit()
         
         # Return updated list
-        return await self.get_by_session(db, session_id=session_id)
+        if is_date_based:
+            return await self.get_by_batch_date(db, batch_id=batch_id, date=date)
+        else:
+            return await self.get_by_session(db, session_id=session_id)
+    
+    async def get_by_batch_date(self, db: AsyncSession, *, batch_id: int, date) -> List[Attendance]:
+        """Get attendance records for a batch on a specific date."""
+        result = await db.execute(
+            select(Attendance)
+            .options(selectinload(Attendance.student))
+            .filter(Attendance.batch_id == batch_id, Attendance.date == date)
+        )
+        return result.scalars().all()
 
     async def get(self, db: AsyncSession, id: int) -> Optional[Attendance]:
         result = await db.execute(select(Attendance).filter(Attendance.id == id))

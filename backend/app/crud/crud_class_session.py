@@ -68,7 +68,9 @@ class CRUDClassSession:
         db.add(db_obj)
         await db.commit()
         await db.refresh(db_obj)
-        return db_obj
+        
+        # Reload with relationships to avoid MissingGreenlet error on response serialization
+        return await self.get(db, id=db_obj.id)
 
     async def update(self, db: AsyncSession, *, db_obj: ClassSession, obj_in: Union[ClassSessionUpdate, Dict[str, Any]]) -> ClassSession:
         if isinstance(obj_in, dict):
@@ -83,7 +85,9 @@ class CRUDClassSession:
         db.add(db_obj)
         await db.commit()
         await db.refresh(db_obj)
-        return db_obj
+        
+        # Reload with relationships to avoid MissingGreenlet error on response serialization
+        return await self.get(db, id=db_obj.id)
 
     async def delete(self, db: AsyncSession, *, id: int) -> Optional[ClassSession]:
         result = await db.execute(select(ClassSession).filter(ClassSession.id == id))

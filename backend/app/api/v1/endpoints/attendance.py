@@ -18,34 +18,31 @@ async def create_bulk_attendance(
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """
-    Submit or update attendance for a session (Bulk).
+    Submit or update attendance for a session or date (Bulk).
     Only Teachers and Admins can perform this action.
+    
+    For session-based attendance: Provide session_id
+    For date-based attendance: Provide batch_id and date (no session_id)
     """
     if current_user.role not in [UserRole.teacher, UserRole.admin]:
         raise HTTPException(status_code=403, detail="Not authorized to mark attendance")
     
-    # We could add a check here to ensure the teacher is actually assigned to this session/batch
-    # But for now, we trust the role check.
+    # Validate that we have either session_id or batch_id+date
+    if attendance_in.session_id is None and (attendance_in.batch_id is None or attendance_in.date is None):
+        raise HTTPException(
+            status_code=400, 
+            detail="Either session_id or both batch_id and date must be provided"
+        )
 
     records = attendance_in.records
-    # Ensure all records have the session_id from the payload
-    # (Schema separates them, but CRUD expects objects)
     
-    # Convert AttendanceCreate objects from the input list
-    # The input `records` is List[AttendanceCreate], but AttendanceCreate requires session_id.
-    # The Schema `AttendanceBulkCreate` defined `records: List[AttendanceCreate]`.
-    # Let's verify `AttendanceCreate` schema again. It has matching fields.
-    # Actually, the bulk input might often just be student_id and status to save bandwidth,
-    # but reusing AttendanceCreate is fine as long as frontend sends it.
-    # Let's assume frontend sends full objects or we inject session_id.
-    
-    # Correction: If frontend sends just student_id/status, we need a simplified schema or inject session_id here.
-    # Our `AttendanceCreate` requires `session_id`.
-    # If the payload `records` already has it, good. If not, validation fails before here.
-    # Ideally, `AttendanceBulkCreate.records` should be a simpler schema sans session_id,
-    # but let's stick to the current definition and expect frontend to send it.
-    
-    return await crud_attendance.upsert_bulk(db, session_id=attendance_in.session_id, records=records)
+    return await crud_attendance.upsert_bulk(
+        db, 
+        session_id=attendance_in.session_id, 
+        batch_id=attendance_in.batch_id,
+        date=attendance_in.date,
+        records=records
+    )
 
 @router.get("/session/{session_id}", response_model=List[Attendance])
 async def read_session_attendance(

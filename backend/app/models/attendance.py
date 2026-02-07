@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, UniqueConstraint
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, UniqueConstraint, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
@@ -15,10 +15,11 @@ class Attendance(Base):
     __tablename__ = "attendance"
 
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("class_sessions.id"), nullable=False)
+    session_id = Column(Integer, ForeignKey("class_sessions.id"), nullable=True)  # Nullable for date-based attendance
     student_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    batch_id = Column(Integer, ForeignKey("batches.id"), nullable=True) # Making nullable initially for safety, but aiming for NOT NULL logic
+    batch_id = Column(Integer, ForeignKey("batches.id"), nullable=True)
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=True)
+    date = Column(Date, nullable=True)  # For date-based attendance without sessions
     status = Column(Enum(AttendanceStatus), default=AttendanceStatus.present, nullable=False)
     remarks = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -29,6 +30,9 @@ class Attendance(Base):
     batch = relationship("Batch", backref="attendances")
     course = relationship("Course", backref="attendances")
 
+    # Unique constraint: either (session_id, student_id) or (batch_id, date, student_id)
+    # Using separate constraints since one of session_id or batch_id+date will be used
     __table_args__ = (
         UniqueConstraint('session_id', 'student_id', name='uq_attendance_session_student'),
+        UniqueConstraint('batch_id', 'date', 'student_id', name='uq_attendance_batch_date_student'),
     )

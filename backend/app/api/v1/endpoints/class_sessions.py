@@ -26,26 +26,36 @@ async def create_session(
     if current_user.role not in ["admin", "coordinator", "teacher"]:
         raise HTTPException(status_code=403, detail="Not authorized to create sessions")
         
-    # Persist Logic: Upsert based on batch_id (Update existing future session or create new)
-    # Check if there is an existing future session for this batch
-    existing_sessions = await class_session.get_by_batch(db, batch_id=session_in.batch_id)
-    
-    # Filter for future sessions to update the relevant one
-    now = datetime.now(timezone.utc)
-    # Ensure start_time is comparable (aware/naive). DB usually returns aware if configured, or naive. 
-    # Assuming start_time in DB is standard.
-    
+    # Check if there is an existing future session for this batch to update
     target_session = None
-    if existing_sessions:
-        # Sort by start_time just in case
-        existing_sessions.sort(key=lambda x: x.start_time)
+    try:
+        existing_sessions = await class_session.get_by_batch(db, batch_id=session_in.batch_id)
         
-        # Find first session in the future (or very recent past?)
-        # We'll stick to strictly future for "Next Session" update logic
-        future_sessions = [s for s in existing_sessions if s.start_time > now]
-        
-        if future_sessions:
-            target_session = future_sessions[0]
+        if existing_sessions:
+            now = datetime.now(timezone.utc)
+            
+            # Sort by start_time
+            existing_sessions.sort(key=lambda x: x.start_time)
+            
+            # Find first session in the future
+            # Handle timezone-aware/naive comparison gracefully
+            future_sessions = []
+            for s in existing_sessions:
+                try:
+                    session_time = s.start_time
+                    # Make comparison timezone-aware if needed
+                    if session_time.tzinfo is None:
+                        session_time = session_time.replace(tzinfo=timezone.utc)
+                    if session_time > now:
+                        future_sessions.append(s)
+                except Exception:
+                    continue
+            
+            if future_sessions:
+                target_session = future_sessions[0]
+    except Exception as e:
+        print(f"DEBUG: Error checking existing sessions: {e}")
+        # Continue to create new session
 
     if target_session:
         # Update existing
